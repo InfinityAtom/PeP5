@@ -1,0 +1,674 @@
+@page "/student/take-exam"
+@using Microsoft.AspNetCore.Components.Authorization
+@attribute [Authorize(Roles = UserRoles.Student)]
+@inject IExamService ExamService
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject UserManager<ApplicationUser> UserManager
+@inject NavigationManager Navigation
+@inject NotificationService NotificationService
+@inject DialogService DialogService
+@implements IDisposable
+
+<PageTitle>Take Exam - PeP v5.0</PageTitle>
+
+@if (isExamLoading)
+{
+    <RadzenRow JustifyContent="JustifyContent.Center" AlignItems="AlignItems.Center" Gap="2rem">
+        <RadzenColumn Size="12" SizeMD="6" SizeLG="4">
+            <RadzenCard>
+                <RadzenStack Gap="1rem" AlignItems="AlignItems.Center">
+                    <RadzenProgressBarCircular ShowValue="false" Size="ProgressBarCircularSize.Large" />
+                    <RadzenText TextStyle="TextStyle.H5">Loading your exam...</RadzenText>
+                </RadzenStack>
+            </RadzenCard>
+        </RadzenColumn>
+    </RadzenRow>
+}
+else if (!examStarted)
+{
+    <!-- Entry Screen -->
+    <RadzenRow JustifyContent="JustifyContent.Center" AlignItems="AlignItems.Center" Gap="2rem">
+        <RadzenColumn Size="12" SizeMD="6" SizeLG="4">
+            <RadzenCard>
+                <RadzenStack Gap="1.5rem" AlignItems="AlignItems.Center">
+                    <RadzenIcon Icon="assignment" IconColor="@Colors.Primary" />
+                    
+                    <RadzenText TextStyle="TextStyle.H4" TextAlign="TextAlign.Center" TagName="TagName.H1">
+                        Take Your Exam
+                    </RadzenText>
+                    <RadzenText TextStyle="TextStyle.Body1" TextAlign="TextAlign.Center">
+                        Enter the exam code provided by your teacher to begin
+                    </RadzenText>
+
+                    <RadzenAlert AlertStyle="AlertStyle.Info" Variant="Variant.Flat" AllowClose="false" Size="AlertSize.Small">
+                        Make sure you have a stable internet connection before starting.
+                    </RadzenAlert>
+
+                    <RadzenTemplateForm TItem="ExamAccessViewModel" Data="@examAccessModel" Submit="@StartExam">
+                        <RadzenStack Gap="1rem" AlignItems="AlignItems.Stretch">
+                            <RadzenFormField Text="Exam Code" Variant="Variant.Outlined">
+                                <Start>
+                                    <RadzenIcon Icon="vpn_key" />
+                                </Start>
+                                <ChildContent>
+                                    <RadzenTextBox @bind-Value="@examAccessModel.ExamCode" 
+                                                   Name="ExamCode"
+                                                   Placeholder="e.g., ABC123" 
+                                                   MaxLength="20" />
+                                </ChildContent>
+                            </RadzenFormField>
+                            <RadzenRequiredValidator Component="ExamCode" Text="Exam code is required" />
+
+                            <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.Center" Gap="1rem">
+                                <RadzenButton ButtonType="ButtonType.Submit" 
+                                            Text="Start Exam" 
+                                            Icon="play_arrow" 
+                                            ButtonStyle="ButtonStyle.Primary"
+                                            Size="ButtonSize.Large"
+                                            IsBusy="@isLoading" />
+                                <RadzenButton Text="Cancel" 
+                                            Icon="close" 
+                                            ButtonStyle="ButtonStyle.Light"
+                                            Size="ButtonSize.Large"
+                                            Click="@(() => Navigation.NavigateTo("/"))" />
+                            </RadzenStack>
+                        </RadzenStack>
+                    </RadzenTemplateForm>
+                </RadzenStack>
+            </RadzenCard>
+        </RadzenColumn>
+    </RadzenRow>
+}
+else if (currentExamAttempt != null)
+{
+    <!-- Exam Header -->
+    <RadzenCard>
+        <RadzenRow JustifyContent="JustifyContent.SpaceBetween" AlignItems="AlignItems.Center" Gap="1rem">
+            <RadzenColumn SizeXS="12" SizeMD="4">
+                <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
+                    <RadzenIcon Icon="quiz" IconColor="@Colors.Primary" />
+                    <RadzenStack Gap="0">
+                        <RadzenText TextStyle="TextStyle.H6" TagName="TagName.H1">
+                            @currentExam?.Title
+                        </RadzenText>
+                        <RadzenText TextStyle="TextStyle.Body2">
+                            @currentExam?.Course?.Name
+                        </RadzenText>
+                    </RadzenStack>
+                </RadzenStack>
+            </RadzenColumn>
+            <RadzenColumn SizeXS="12" SizeMD="4">
+                <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.Center" Gap="0.5rem">
+                    <RadzenBadge BadgeStyle="BadgeStyle.Secondary" IsPill="true" Text="@($"{questions.Count} Questions")" />
+                    <RadzenBadge BadgeStyle="BadgeStyle.Info" IsPill="true" Text="@($"{questions.Sum(q => q.Points)} Points")" />
+                </RadzenStack>
+            </RadzenColumn>
+            <RadzenColumn SizeXS="12" SizeMD="4">
+                <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.End" AlignItems="AlignItems.Center" Gap="0.5rem">
+                    <RadzenButton Text="Navigator" 
+                                Icon="grid_view" 
+                                ButtonStyle="ButtonStyle.Secondary"
+                                Size="ButtonSize.Small"
+                                Click="@GoToNavigator" />
+                    <RadzenBadge BadgeStyle="@GetTimerBadgeStyle()" IsPill="true">
+                        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.25rem">
+                            <RadzenIcon Icon="timer" />
+                            <RadzenText TextStyle="TextStyle.Subtitle1">@timeRemaining.ToString(@"hh\:mm\:ss")</RadzenText>
+                        </RadzenStack>
+                    </RadzenBadge>
+                </RadzenStack>
+            </RadzenColumn>
+        </RadzenRow>
+    </RadzenCard>
+
+    <!-- Progress Bar -->
+    <RadzenCard>
+        <RadzenStack Gap="0.5rem">
+            <RadzenRow JustifyContent="JustifyContent.SpaceBetween" AlignItems="AlignItems.Center">
+                <RadzenText TextStyle="TextStyle.Body2">Question @(currentQuestionIndex + 1) of @questions.Count</RadzenText>
+                <RadzenText TextStyle="TextStyle.Body2">@GetAnsweredCount() answered</RadzenText>
+            </RadzenRow>
+            <RadzenProgressBar Value="@GetProgressPercentage()" ShowValue="false" ProgressBarStyle="ProgressBarStyle.Primary" />
+        </RadzenStack>
+    </RadzenCard>
+
+    <!-- Question Card -->
+    @if (currentQuestion != null)
+    {
+        <RadzenCard>
+            <RadzenStack Gap="1.5rem">
+                <!-- Question Header -->
+                <RadzenRow JustifyContent="JustifyContent.SpaceBetween" AlignItems="AlignItems.Center">
+                    <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
+                        <RadzenBadge BadgeStyle="BadgeStyle.Primary" IsPill="true" Text="@($"Q{currentQuestionIndex + 1}")" />
+                        @if (IsCurrentQuestionMarked())
+                        {
+                            <RadzenBadge BadgeStyle="BadgeStyle.Warning" IsPill="true">
+                                <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.25rem">
+                                    <RadzenIcon Icon="flag" />
+                                    <span>Flagged</span>
+                                </RadzenStack>
+                            </RadzenBadge>
+                        }
+                    </RadzenStack>
+                    <RadzenBadge BadgeStyle="BadgeStyle.Success" IsPill="true" Text="@($"{currentQuestion.Points} pts")" />
+                </RadzenRow>
+
+                <!-- Question Text -->
+                <RadzenCard Variant="Variant.Flat">
+                    <RadzenText TextStyle="TextStyle.H6">
+                        @currentQuestion.QuestionText
+                    </RadzenText>
+                </RadzenCard>
+
+                <!-- Answer Choices -->
+                <RadzenStack Gap="0.5rem">
+                    <RadzenText TextStyle="TextStyle.Subtitle2">
+                        @(currentQuestion.QuestionType == QuestionType.MultipleChoice ? "Select one answer:" : "Select all that apply:")
+                    </RadzenText>
+
+                    @if (currentQuestion.QuestionType == QuestionType.MultipleChoice)
+                    {
+                        @foreach (var choice in currentQuestion.Choices)
+                        {
+                            var choiceId = choice.Id;
+                            var isSelected = selectedSingleChoice == choiceId;
+                            <RadzenCard Variant="@(isSelected ? Variant.Filled : Variant.Outlined)" 
+                                        @onclick="@(() => SelectSingleChoice(choiceId))">
+                                <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.75rem">
+                                    <RadzenIcon Icon="@(isSelected ? "radio_button_checked" : "radio_button_unchecked")" 
+                                               IconColor="@(isSelected ? Colors.Primary : Colors.Secondary)" />
+                                    <RadzenText TextStyle="TextStyle.Body1">@choice.ChoiceText</RadzenText>
+                                </RadzenStack>
+                            </RadzenCard>
+                        }
+                    }
+                    else
+                    {
+                        @foreach (var choice in currentQuestion.Choices)
+                        {
+                            var choiceId = choice.Id;
+                            var isSelected = selectedMultipleChoices.ContainsKey(choiceId) && selectedMultipleChoices[choiceId];
+                            <RadzenCard Variant="@(isSelected ? Variant.Filled : Variant.Outlined)"
+                                        @onclick="@(() => ToggleMultipleChoice(choiceId))">
+                                <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.75rem">
+                                    <RadzenIcon Icon="@(isSelected ? "check_box" : "check_box_outline_blank")" 
+                                               IconColor="@(isSelected ? Colors.Primary : Colors.Secondary)" />
+                                    <RadzenText TextStyle="TextStyle.Body1">@choice.ChoiceText</RadzenText>
+                                </RadzenStack>
+                            </RadzenCard>
+                        }
+                    }
+                </RadzenStack>
+
+                <!-- Navigation Buttons -->
+                <RadzenRow JustifyContent="JustifyContent.SpaceBetween" AlignItems="AlignItems.Center" Gap="0.5rem">
+                    <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem">
+                        <RadzenButton Text="Previous" 
+                                    Icon="chevron_left" 
+                                    ButtonStyle="ButtonStyle.Light"
+                                    Disabled="@(currentQuestionIndex == 0)"
+                                    Click="@PreviousQuestion" />
+                        @if (currentQuestionIndex < questions.Count - 1)
+                        {
+                            <RadzenButton Text="Next" 
+                                        Icon="chevron_right" 
+                                        IconPosition="IconPosition.Right"
+                                        ButtonStyle="ButtonStyle.Primary"
+                                        Click="@NextQuestion" />
+                        }
+                        else
+                        {
+                            <RadzenButton Text="Review & Submit" 
+                                        Icon="checklist" 
+                                        IconPosition="IconPosition.Right"
+                                        ButtonStyle="ButtonStyle.Success"
+                                        Click="@GoToNavigator" />
+                        }
+                    </RadzenStack>
+
+                    <RadzenButton Text="@(IsCurrentQuestionMarked() ? "Remove Flag" : "Flag for Review")" 
+                                Icon="@(IsCurrentQuestionMarked() ? "flag" : "outlined_flag")" 
+                                ButtonStyle="@(IsCurrentQuestionMarked() ? ButtonStyle.Warning : ButtonStyle.Light)"
+                                Click="@ToggleMarkForReview" />
+                </RadzenRow>
+            </RadzenStack>
+        </RadzenCard>
+    }
+}
+
+@code {
+    private ExamAccessViewModel examAccessModel = new();
+    private bool examStarted = false;
+    private bool isLoading = false;
+    private bool isExamLoading = false;
+    private ExamAttempt? currentExamAttempt;
+    private Exam? currentExam;
+    private List<Question> questions = new();
+    private List<StudentAnswer> studentAnswers = new();
+    private int currentQuestionIndex = 0;
+    private Question? currentQuestion => questions.ElementAtOrDefault(currentQuestionIndex);
+    private Timer? timer;
+    private TimeSpan timeRemaining;
+    private string? currentUserId;
+
+    [Parameter, SupplyParameterFromQuery(Name = "attemptId")]
+    public int? QueryAttemptId { get; set; }
+
+    [Parameter, SupplyParameterFromQuery(Name = "questionIndex")]
+    public int? QueryQuestionIndex { get; set; }
+
+    [Parameter, SupplyParameterFromQuery(Name = "submit")]
+    public bool? SubmitRequested { get; set; }
+
+    // Question state
+    private int? selectedSingleChoice;
+    private Dictionary<int, bool> selectedMultipleChoices = new();
+    
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        currentUserId = UserManager.GetUserId(authState.User);
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (QueryAttemptId.HasValue && currentUserId != null &&
+            (currentExamAttempt == null || currentExamAttempt.Id != QueryAttemptId.Value))
+        {
+            isExamLoading = true;
+            examStarted = true; // prevent entry screen flash
+            await LoadExistingAttemptAsync(QueryAttemptId.Value, QueryQuestionIndex);
+        }
+
+        if (SubmitRequested == true && examStarted && currentExamAttempt != null)
+        {
+            await SubmitExamInternal(autoSubmitted: false);
+        }
+    }
+
+    private BadgeStyle GetTimerBadgeStyle()
+    {
+        if (timeRemaining.TotalMinutes < 5)
+            return BadgeStyle.Danger;
+        else if (timeRemaining.TotalMinutes < 10)
+            return BadgeStyle.Warning;
+        else
+            return BadgeStyle.Primary;
+    }
+
+    private async Task LoadExistingAttemptAsync(int attemptId, int? questionIndexOverride)
+    {
+        if (currentUserId == null) { isExamLoading = false; return; }
+
+        try
+        {
+            var attempt = await ExamService.GetExamAttemptDetailsAsync(attemptId, currentUserId);
+            if (attempt == null || attempt.Status != ExamAttemptStatus.InProgress)
+            {
+                NotificationService.Notify(NotificationSeverity.Error, "Exam Not Found", "Could not resume this exam.");
+                examStarted = false;
+                return;
+            }
+
+            currentExamAttempt = attempt;
+            currentExam = attempt.Exam;
+            questions = attempt.StudentAnswers
+                .OrderBy(sa => sa.Id)
+                .Select(sa => sa.Question)
+                .Where(q => q != null)
+                .ToList()!;
+
+            if (questions.Count == 0 && currentExam != null)
+            {
+                questions = currentExam.Questions.OrderBy(q => q.Order).ToList();
+            }
+            studentAnswers = attempt.StudentAnswers.ToList();
+
+            currentQuestionIndex = Math.Clamp(questionIndexOverride ?? 0, 0, questions.Count - 1);
+            examStarted = true;
+
+            var elapsedSeconds = (DateTime.UtcNow - attempt.StartedAt).TotalSeconds;
+            var totalSeconds = currentExam.DurationMinutes * 60;
+            timeRemaining = TimeSpan.FromSeconds(Math.Max(0, totalSeconds - elapsedSeconds));
+
+            InitializeQuestionState();
+            StartTimer();
+        }
+        finally
+        {
+            isExamLoading = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private int GetAnsweredCount() => studentAnswers.Count(sa => sa.IsCompleted);
+    
+    private int GetMarkedCount() => studentAnswers.Count(sa => sa.IsMarkedForReview);
+    
+    private int GetUnansweredCount() => questions.Count - GetAnsweredCount();
+    
+    private double GetProgressPercentage() => questions.Count > 0 ? (double)GetAnsweredCount() / questions.Count * 100 : 0;
+
+    private bool IsCurrentQuestionMarked()
+    {
+        if (currentQuestion == null) return false;
+        var answer = studentAnswers.FirstOrDefault(sa => sa.QuestionId == currentQuestion.Id);
+        return answer?.IsMarkedForReview ?? false;
+    }
+
+    private void SelectSingleChoice(int choiceId)
+    {
+        selectedSingleChoice = choiceId;
+        SaveCurrentAnswerInternal();
+    }
+
+    private void ToggleMultipleChoice(int choiceId)
+    {
+        if (selectedMultipleChoices.ContainsKey(choiceId))
+        {
+            selectedMultipleChoices[choiceId] = !selectedMultipleChoices[choiceId];
+            SaveCurrentAnswerInternal();
+        }
+    }
+
+    private async Task StartExam()
+    {
+        if (string.IsNullOrWhiteSpace(examAccessModel.ExamCode) || currentUserId == null)
+            return;
+
+        isLoading = true;
+        isExamLoading = true;
+        try
+        {
+            var codeValue = examAccessModel.ExamCode.Trim().ToUpperInvariant();
+            var examCode = await ExamService.GetValidExamCodeAsync(codeValue);
+            if (examCode == null)
+            {
+                NotificationService.Notify(NotificationSeverity.Error, "Invalid Code", "The exam code is invalid or expired.");
+                return;
+            }
+
+            var attempt = await ExamService.StartExamAsync(currentUserId, examCode.ExamId, examCode.Code);
+            currentExamAttempt = attempt;
+
+            currentExam = attempt.Exam;
+            questions = attempt.StudentAnswers
+                .OrderBy(sa => sa.Id)
+                .Select(sa => sa.Question)
+                .Where(q => q != null)
+                .ToList()!;
+
+            if (questions.Count == 0 && currentExam != null)
+            {
+                questions = currentExam.Questions.OrderBy(q => q.Order).ToList();
+            }
+
+            studentAnswers = attempt.StudentAnswers.ToList();
+
+            examStarted = true;
+            timeRemaining = TimeSpan.FromMinutes(currentExam.DurationMinutes);
+
+            InitializeQuestionState();
+            StartTimer();
+
+            NotificationService.Notify(NotificationSeverity.Success, "Exam Started", "Good luck with your exam!");
+        }
+        catch (Exception ex)
+        {
+            NotificationService.Notify(NotificationSeverity.Error, "Error", ex.Message);
+        }
+        finally
+        {
+            isLoading = false;
+            isExamLoading = false;
+        }
+    }
+
+    private void StartTimer()
+    {
+        timer = new Timer(async _ =>
+        {
+            timeRemaining = timeRemaining.Subtract(TimeSpan.FromSeconds(1));
+            if (timeRemaining <= TimeSpan.Zero)
+            {
+                await AutoSubmitExam();
+            }
+            await InvokeAsync(StateHasChanged);
+        }, null, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(1));
+    }
+
+    private async Task AutoSubmitExam()
+    {
+        timer?.Dispose();
+        await SubmitExamInternal(autoSubmitted: true);
+    }
+
+    private void InitializeQuestionState()
+    {
+        if (currentQuestion == null) return;
+
+        var answer = studentAnswers.FirstOrDefault(sa => sa.QuestionId == currentQuestion.Id);
+
+        if (currentQuestion.QuestionType == QuestionType.MultipleChoice)
+        {
+            selectedSingleChoice = answer?.SelectedChoiceId;
+        }
+        else
+        {
+            selectedMultipleChoices.Clear();
+            foreach (var choice in currentQuestion.Choices)
+            {
+                selectedMultipleChoices[choice.Id] = false;
+            }
+
+            if (!string.IsNullOrEmpty(answer?.SelectedChoiceIds))
+            {
+                try
+                {
+                    var selected = System.Text.Json.JsonSerializer.Deserialize<List<int>>(answer.SelectedChoiceIds);
+                    foreach (var choiceId in selected ?? new List<int>())
+                    {
+                        if (selectedMultipleChoices.ContainsKey(choiceId))
+                            selectedMultipleChoices[choiceId] = true;
+                    }
+                }
+                catch { }
+            }
+        }
+    }
+
+    private void SaveCurrentAnswerInternal()
+    {
+        if (currentQuestion == null) return;
+
+        var answer = studentAnswers.FirstOrDefault(sa => sa.QuestionId == currentQuestion.Id);
+        if (answer != null)
+        {
+            if (currentQuestion.QuestionType == QuestionType.MultipleChoice)
+            {
+                answer.SelectedChoiceId = selectedSingleChoice;
+                answer.IsCompleted = selectedSingleChoice.HasValue;
+            }
+            else
+            {
+                var selected = selectedMultipleChoices.Where(kvp => kvp.Value).Select(kvp => kvp.Key).ToList();
+                answer.SelectedChoiceIds = selected.Any() ? System.Text.Json.JsonSerializer.Serialize(selected) : null;
+                answer.IsCompleted = selected.Any();
+            }
+        }
+    }
+
+    private async Task SaveAndPersistCurrentAnswer()
+    {
+        if (currentQuestion == null || currentExamAttempt == null) return;
+
+        SaveCurrentAnswerInternal();
+
+        var answer = studentAnswers.FirstOrDefault(sa => sa.QuestionId == currentQuestion.Id);
+        if (answer == null) return;
+
+        var selectedIds = new List<int>();
+        if (currentQuestion.QuestionType == QuestionType.MultipleChoice && answer.SelectedChoiceId.HasValue)
+        {
+            selectedIds.Add(answer.SelectedChoiceId.Value);
+        }
+        else if (!string.IsNullOrWhiteSpace(answer.SelectedChoiceIds))
+        {
+            try
+            {
+                selectedIds = System.Text.Json.JsonSerializer.Deserialize<List<int>>(answer.SelectedChoiceIds) ?? new List<int>();
+            }
+            catch
+            {
+                selectedIds = new List<int>();
+            }
+        }
+
+        await ExamService.SaveAnswerAsync(currentExamAttempt.Id, currentQuestion.Id, selectedIds, answer.IsMarkedForReview);
+    }
+
+    private async Task PreviousQuestion()
+    {
+        await SaveAndPersistCurrentAnswer();
+        if (currentQuestionIndex > 0)
+        {
+            currentQuestionIndex--;
+            InitializeQuestionState();
+        }
+    }
+
+    private async Task NextQuestion()
+    {
+        await SaveAndPersistCurrentAnswer();
+        if (currentQuestionIndex < questions.Count - 1)
+        {
+            currentQuestionIndex++;
+            InitializeQuestionState();
+        }
+    }
+
+    private async Task GoToNavigator()
+    {
+        await SaveAndPersistCurrentAnswer();
+        if (currentExamAttempt != null)
+        {
+            Navigation.NavigateTo($"/student/exam-navigator/{currentExamAttempt.Id}?questionIndex={currentQuestionIndex}");
+        }
+    }
+
+    private void ToggleMarkForReview()
+    {
+        if (currentQuestion == null) return;
+        
+        var answer = studentAnswers.FirstOrDefault(sa => sa.QuestionId == currentQuestion.Id);
+        if (answer != null)
+        {
+            answer.IsMarkedForReview = !answer.IsMarkedForReview;
+        }
+    }
+
+    private async Task ShowFinishDialog()
+    {
+        var unanswered = GetUnansweredCount();
+        var marked = GetMarkedCount();
+        
+        var message = "Are you sure you want to submit your exam?";
+        if (unanswered > 0 || marked > 0)
+        {
+            message = $"You have {unanswered} unanswered question(s) and {marked} flagged question(s). Are you sure you want to submit?";
+        }
+        
+        var result = await DialogService.Confirm(message, "Submit Exam", new ConfirmOptions
+        {
+            OkButtonText = "Submit",
+            CancelButtonText = "Continue Exam"
+        });
+        
+        if (result == true)
+        {
+            await FinishExam();
+        }
+    }
+
+    private async Task FinishExam()
+    {
+        timer?.Dispose();
+        await SubmitExamInternal(autoSubmitted: false);
+    }
+
+    private async Task SubmitExamInternal(bool autoSubmitted)
+    {
+        if (currentExamAttempt == null) return;
+
+        await SaveAndPersistCurrentAnswer();
+
+        try
+        {
+            var submitted = await ExamService.SubmitExamAsync(currentExamAttempt.Id);
+            currentExamAttempt = submitted;
+
+            var message = autoSubmitted
+                ? "Your time expired and the exam was submitted automatically."
+                : "Your exam has been submitted successfully!";
+            var severity = autoSubmitted ? NotificationSeverity.Warning : NotificationSeverity.Success;
+
+            NotificationService.Notify(severity, "Exam Submitted", message);
+            Navigation.NavigateTo($"/student/results/{submitted.Id}");
+        }
+        catch (Exception ex)
+        {
+            NotificationService.Notify(NotificationSeverity.Error, "Submit Failed", "We couldn't submit your exam.");
+            Console.WriteLine($"Submit exam error: {ex.Message}");
+        }
+    }
+
+    private ButtonStyle GetQuestionButtonStyle(bool isCurrent, bool isAnswered, bool isMarked)
+    {
+        if (isCurrent) return ButtonStyle.Primary;
+        if (isMarked) return ButtonStyle.Warning;
+        if (isAnswered) return ButtonStyle.Success;
+        return ButtonStyle.Light;
+    }
+
+    private List<QuestionNavigatorItem> GetNavigatorItems()
+    {
+        var items = new List<QuestionNavigatorItem>();
+        for (int i = 0; i < questions.Count; i++)
+        {
+            var question = questions[i];
+            var answer = studentAnswers.FirstOrDefault(sa => sa.QuestionId == question.Id);
+            var isAnswered = answer?.IsCompleted == true;
+            var isMarked = answer?.IsMarkedForReview == true;
+            var isCurrent = i == currentQuestionIndex;
+
+            items.Add(new QuestionNavigatorItem
+            {
+                Index = i,
+                Number = i + 1,
+                Points = (int)question.Points,
+                IsAnswered = isAnswered,
+                IsMarked = isMarked,
+                IsCurrent = isCurrent,
+                ButtonStyle = GetQuestionButtonStyle(isCurrent, isAnswered, isMarked)
+            });
+        }
+        return items;
+    }
+
+    public void Dispose()
+    {
+        timer?.Dispose();
+    }
+
+    private class QuestionNavigatorItem
+    {
+        public int Index { get; set; }
+        public int Number { get; set; }
+        public int Points { get; set; }
+        public bool IsAnswered { get; set; }
+        public bool IsMarked { get; set; }
+        public bool IsCurrent { get; set; }
+        public ButtonStyle ButtonStyle { get; set; }
+    }
+}

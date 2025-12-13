@@ -1,0 +1,210 @@
+@page "/student/exam-navigator/{AttemptId:int}"
+@using Microsoft.AspNetCore.Components.Authorization
+@attribute [Authorize(Roles = UserRoles.Student)]
+@inject IExamService ExamService
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject UserManager<ApplicationUser> UserManager
+@inject NavigationManager Navigation
+@inject NotificationService NotificationService
+
+<PageTitle>Exam Navigator - PeP v5.0</PageTitle>
+
+<RadzenStack Gap="1rem">
+    <RadzenBreadCrumb>
+        <RadzenBreadCrumbItem Path="/" Text="Home" />
+        <RadzenBreadCrumbItem Path="/student/take-exam" Text="Current Exam" />
+        <RadzenBreadCrumbItem Text="Navigator" />
+    </RadzenBreadCrumb>
+
+    @if (isLoading)
+    {
+        <RadzenCard>
+            <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="1rem">
+                <RadzenProgressBarCircular ShowValue="false" Size="ProgressBarCircularSize.Medium" />
+                <RadzenText>Loading exam navigator...</RadzenText>
+            </RadzenStack>
+        </RadzenCard>
+    }
+    else if (currentExam == null || attempt == null)
+    {
+        <RadzenAlert AlertStyle="AlertStyle.Danger" Icon="error" Closeable="false">
+            Unable to load this exam. Please return to your exam and try again.
+        </RadzenAlert>
+        <RadzenButton Text="Back to Exam" Icon="arrow_back" ButtonStyle="ButtonStyle.Primary" Click="@(() => Navigation.NavigateTo("/student/take-exam"))" />
+    }
+    else
+    {
+        <RadzenCard>
+            <RadzenRow JustifyContent="JustifyContent.SpaceBetween" AlignItems="AlignItems.Center">
+                <RadzenStack Gap="0.25rem">
+                    <RadzenText TextStyle="TextStyle.H5">@currentExam.Title</RadzenText>
+                    <RadzenText TextStyle="TextStyle.Body2">@currentExam.Course?.Name</RadzenText>
+                </RadzenStack>
+                <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem">
+                    <RadzenBadge BadgeStyle="BadgeStyle.Secondary" IsPill="true" Text="@($"{questions.Count} Questions")" />
+                    <RadzenBadge BadgeStyle="BadgeStyle.Info" IsPill="true" Text="@($"{currentExam.DurationMinutes} min")" />
+                </RadzenStack>
+            </RadzenRow>
+        </RadzenCard>
+
+        <RadzenRow Gutter="16px">
+            <RadzenColumn Size="12" SizeMD="6">
+                <RadzenCard>
+                    <RadzenText TextStyle="TextStyle.H6" TagName="TagName.H2">Flagged Questions</RadzenText>
+                    @if (navigatorItems.Any(i => i.IsMarked))
+                    {
+                        <RadzenDataGrid Data="@navigatorItems.Where(i => i.IsMarked)" TItem="NavigatorItem" AllowPaging="true" PageSize="10" AllowSorting="true">
+                            <Columns>
+                                <RadzenDataGridColumn TItem="NavigatorItem" Property="Number" Title="#" Width="60px" />
+                                <RadzenDataGridColumn TItem="NavigatorItem" Property="Points" Title="Points" Width="80px" />
+                                <RadzenDataGridColumn TItem="NavigatorItem" Property="IsAnswered" Title="Answered" Width="120px">
+                                    <Template Context="data">
+                                        <RadzenBadge BadgeStyle="@(data.IsAnswered ? BadgeStyle.Success : BadgeStyle.Danger)" Text="@(data.IsAnswered ? "Yes" : "No")" />
+                                    </Template>
+                                </RadzenDataGridColumn>
+                                <RadzenDataGridColumn TItem="NavigatorItem" Title="Go" Width="90px" TextAlign="TextAlign.Right">
+                                    <Template Context="data">
+                                        <RadzenButton Text="Go" Icon="arrow_forward" Size="ButtonSize.Small" Click="@(() => NavigateToQuestion(data.Index))" />
+                                    </Template>
+                                </RadzenDataGridColumn>
+                            </Columns>
+                        </RadzenDataGrid>
+                    }
+                    else
+                    {
+                        <RadzenAlert AlertStyle="AlertStyle.Info" Icon="info">No questions are flagged for review.</RadzenAlert>
+                    }
+                </RadzenCard>
+            </RadzenColumn>
+            <RadzenColumn Size="12" SizeMD="6">
+                <RadzenCard>
+                    <RadzenText TextStyle="TextStyle.H6" TagName="TagName.H2">All Questions</RadzenText>
+                    <RadzenDataGrid Data="@navigatorItems" TItem="NavigatorItem" AllowPaging="true" PageSize="10" AllowSorting="true">
+                        <Columns>
+                            <RadzenDataGridColumn TItem="NavigatorItem" Property="Number" Title="#" Width="60px" />
+                            <RadzenDataGridColumn TItem="NavigatorItem" Property="Points" Title="Points" Width="80px" />
+                            <RadzenDataGridColumn TItem="NavigatorItem" Property="IsMarked" Title="Flagged" Width="120px">
+                                <Template Context="data">
+                                    <RadzenBadge BadgeStyle="@(data.IsMarked ? BadgeStyle.Warning : BadgeStyle.Light)" Text="@(data.IsMarked ? "Flagged" : "No")" />
+                                </Template>
+                            </RadzenDataGridColumn>
+                            <RadzenDataGridColumn TItem="NavigatorItem" Property="IsAnswered" Title="Answered" Width="120px">
+                                <Template Context="data">
+                                    <RadzenBadge BadgeStyle="@(data.IsAnswered ? BadgeStyle.Success : BadgeStyle.Danger)" Text="@(data.IsAnswered ? "Yes" : "No")" />
+                                </Template>
+                            </RadzenDataGridColumn>
+                            <RadzenDataGridColumn TItem="NavigatorItem" Title="Go" Width="90px" TextAlign="TextAlign.Right">
+                                <Template Context="data">
+                                    <RadzenButton Text="Go" Icon="arrow_forward" Size="ButtonSize.Small" Click="@(() => NavigateToQuestion(data.Index))" />
+                                </Template>
+                            </RadzenDataGridColumn>
+                        </Columns>
+                    </RadzenDataGrid>
+                </RadzenCard>
+            </RadzenColumn>
+        </RadzenRow>
+
+        <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem">
+            <RadzenButton Text="Return to Exam" Icon="arrow_back" ButtonStyle="ButtonStyle.Primary" Click="@(() => NavigateToQuestion(QuestionIndex ?? currentQuestionIndex))" />
+            <RadzenButton Text="Submit Exam" Icon="send" ButtonStyle="ButtonStyle.Danger" Click="@SubmitAndFinish" />
+        </RadzenStack>
+    }
+</RadzenStack>
+
+@code {
+    [Parameter] public int AttemptId { get; set; }
+    [Parameter, SupplyParameterFromQuery(Name = "questionIndex")] public int? QuestionIndex { get; set; }
+
+    private ExamAttempt? attempt;
+    private Exam? currentExam;
+    private List<Question> questions = new();
+    private List<StudentAnswer> answers = new();
+    private bool isLoading = true;
+    private int currentQuestionIndex;
+    private List<NavigatorItem> navigatorItems = new();
+    private string? currentUserId;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        currentUserId = UserManager.GetUserId(authState.User);
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        await LoadDataAsync();
+    }
+
+    private async Task LoadDataAsync()
+    {
+        isLoading = true;
+        navigatorItems.Clear();
+
+        try
+        {
+            if (currentUserId == null)
+            {
+                NotificationService.Notify(NotificationSeverity.Error, "Error", "User not identified.");
+                return;
+            }
+
+            attempt = await ExamService.GetExamAttemptDetailsAsync(AttemptId, currentUserId);
+            if (attempt == null)
+            {
+                NotificationService.Notify(NotificationSeverity.Error, "Not Found", "Exam attempt could not be loaded.");
+                return;
+            }
+
+            currentExam = attempt.Exam;
+            questions = attempt.StudentAnswers
+                .OrderBy(sa => sa.Id)
+                .Select(sa => sa.Question)
+                .Where(q => q != null)
+                .ToList()!;
+            answers = attempt.StudentAnswers.ToList();
+            currentQuestionIndex = Math.Clamp(QuestionIndex ?? 0, 0, questions.Count - 1);
+
+            for (int i = 0; i < questions.Count; i++)
+            {
+                var question = questions[i];
+                var answer = answers.FirstOrDefault(a => a.QuestionId == question.Id);
+                navigatorItems.Add(new NavigatorItem
+                {
+                    Index = i,
+                    Number = i + 1,
+                    Points = (int)question.Points,
+                    IsMarked = answer?.IsMarkedForReview == true,
+                    IsAnswered = answer?.IsCompleted == true
+                });
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Navigator load error: {ex.Message}");
+            NotificationService.Notify(NotificationSeverity.Error, "Error", "Unable to load navigator.");
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void NavigateToQuestion(int index)
+    {
+        Navigation.NavigateTo($"/student/take-exam?attemptId={AttemptId}&questionIndex={index}");
+    }
+
+    private void SubmitAndFinish()
+    {
+        Navigation.NavigateTo($"/student/take-exam?attemptId={AttemptId}&questionIndex={currentQuestionIndex}&submit=true");
+    }
+
+    private class NavigatorItem
+    {
+        public int Index { get; set; }
+        public int Number { get; set; }
+        public int Points { get; set; }
+        public bool IsMarked { get; set; }
+        public bool IsAnswered { get; set; }
+    }
+}

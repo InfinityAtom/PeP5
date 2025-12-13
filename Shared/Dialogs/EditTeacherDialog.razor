@@ -1,0 +1,114 @@
+@inject IUserService UserService
+@inject NotificationService NotificationService
+
+<RadzenTemplateForm TItem="TeacherEditViewModel" Data="@model" Submit="@OnSubmit">
+    <RadzenStack Gap="1.25rem" Style="min-width:320px;">
+        <RadzenStack Gap="0.25rem" Style="border-bottom:1px solid var(--rz-border-color);padding-bottom:.5rem;">
+            <RadzenText TextStyle="TextStyle.H6" TagName="TagName.H2">Edit Teacher</RadzenText>
+            <RadzenText TextStyle="TextStyle.Caption" class="text-muted">Update teacher profile information and status.</RadzenText>
+        </RadzenStack>
+
+        <RadzenValidationSummary Style="margin-bottom:.5rem;" />
+
+        <RadzenRow Style="row-gap:1rem;">
+            <RadzenColumn Size="12" SizeMD="6">
+                <RadzenFormField Text="First Name" Variant="Variant.Outlined">
+                    <RadzenTextBox @bind-Value="@model.FirstName" MaxLength="50" Name="FirstName" Placeholder="First name" />
+                    <RadzenRequiredValidator Component="FirstName" Text="Required" />
+                </RadzenFormField>
+            </RadzenColumn>
+            <RadzenColumn Size="12" SizeMD="6">
+                <RadzenFormField Text="Last Name" Variant="Variant.Outlined">
+                    <RadzenTextBox @bind-Value="@model.LastName" MaxLength="50" Name="LastName" Placeholder="Last name" />
+                    <RadzenRequiredValidator Component="LastName" Text="Required" />
+                </RadzenFormField>
+            </RadzenColumn>
+            <RadzenColumn Size="12" SizeMD="6">
+                <RadzenFormField Text="Email" Variant="Variant.Outlined">
+                    <RadzenTextBox @bind-Value="@model.Email" Disabled="true" Name="Email" Style="background:#f7f7f7;" />
+                </RadzenFormField>
+            </RadzenColumn>
+            <RadzenColumn Size="12" SizeMD="6">
+                <RadzenFormField Text="Department" Variant="Variant.Outlined">
+                    <RadzenTextBox @bind-Value="@model.Department" MaxLength="100" Name="Department" Placeholder="E.g. Computer Science" />
+                </RadzenFormField>
+            </RadzenColumn>
+            <RadzenColumn Size="12" SizeMD="6">
+                <RadzenFormField Text="Status" Variant="Variant.Outlined">
+                    <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.75rem">
+                        <RadzenSwitch @bind-Value="@model.IsActive" Name="IsActive" />
+                        <RadzenBadge Text="@(model.IsActive ? "Active" : "Inactive")" BadgeStyle="@(model.IsActive ? BadgeStyle.Success : BadgeStyle.Danger)" />
+                    </RadzenStack>
+                </RadzenFormField>
+            </RadzenColumn>
+        </RadzenRow>
+
+        <RadzenStack Orientation="Orientation.Horizontal" Gap="0.75rem" JustifyContent="JustifyContent.End" Style="margin-top:.5rem;">
+            <RadzenButton Text="Cancel" Icon="close" ButtonStyle="ButtonStyle.Light" Click="@(() => dialogService.Close(false))" />
+            <RadzenButton Text="Update" Icon="save" ButtonStyle="ButtonStyle.Primary" ButtonType="ButtonType.Submit" IsBusy="@isSubmitting" Disabled="@isSubmitting" />
+        </RadzenStack>
+    </RadzenStack>
+</RadzenTemplateForm>
+
+@code {
+    [Parameter] public ApplicationUser Teacher { get; set; } = default!;
+    [Inject] public DialogService dialogService { get; set; } = default!;
+    [Inject] public UserManager<ApplicationUser> UserManager { get; set; } = default!;
+
+    private TeacherEditViewModel model = new();
+    private bool isSubmitting;
+
+    protected override void OnInitialized()
+    {
+        if (Teacher != null)
+        {
+            model.FirstName = Teacher.FirstName;
+            model.LastName = Teacher.LastName;
+            model.Email = Teacher.Email ?? string.Empty;
+            model.Department = Teacher.Department ?? string.Empty;
+            model.IsActive = Teacher.IsActive;
+        }
+    }
+
+    private async Task OnSubmit()
+    {
+        try
+        {
+            isSubmitting = true;
+
+            Teacher.FirstName = model.FirstName;
+            Teacher.LastName = model.LastName;
+            Teacher.Department = model.Department;
+            Teacher.IsActive = model.IsActive;
+
+            var result = await UserManager.UpdateAsync(Teacher);
+            if (result.Succeeded)
+            {
+                NotificationService.Notify(NotificationSeverity.Success, "Updated", "Teacher updated successfully");
+                dialogService.Close(true);
+            }
+            else
+            {
+                NotificationService.Notify(NotificationSeverity.Error, "Error", string.Join("; ", result.Errors.Select(e => e.Description)));
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error updating teacher: {ex.Message}");
+            NotificationService.Notify(NotificationSeverity.Error, "Error", "An error occurred while updating the teacher");
+        }
+        finally
+        {
+            isSubmitting = false;
+        }
+    }
+
+    public class TeacherEditViewModel
+    {
+        public string FirstName { get; set; } = string.Empty;
+        public string LastName { get; set; } = string.Empty;
+        public string Email { get; set; } = string.Empty;
+        public string Department { get; set; } = string.Empty;
+        public bool IsActive { get; set; } = true;
+    }
+}

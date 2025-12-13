@@ -1,0 +1,174 @@
+@page "/teacher/students"
+@attribute [Authorize(Roles = UserRoles.Teacher)]
+@inject IUserService UserService
+@inject DialogService DialogService
+@inject NotificationService NotificationService
+
+<PageTitle>Manage Students - PeP v5.0</PageTitle>
+
+<RadzenStack Gap="1rem">
+    <RadzenBreadCrumb>
+        <RadzenBreadCrumbItem Path="/" Text="Home" />
+        <RadzenBreadCrumbItem Text="Manage Students" />
+    </RadzenBreadCrumb>
+
+    <RadzenRow JustifyContent="JustifyContent.SpaceBetween" AlignItems="AlignItems.Center">
+        <RadzenColumn Size="8">
+            <RadzenText TextStyle="TextStyle.H4" TagName="TagName.H1">
+                Manage Students
+            </RadzenText>
+            <RadzenText TextStyle="TextStyle.Body1" class="text-muted">
+                View and manage student accounts
+            </RadzenText>
+        </RadzenColumn>
+        <RadzenColumn Size="4" class="text-end">
+            <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem">
+                <RadzenButton Text="Add Student" Icon="person_add" ButtonStyle="ButtonStyle.Primary" 
+                            Click="@(() => Navigation.NavigateTo("/teacher/add-student"))" />
+                <RadzenButton Text="Import Students" Icon="upload_file" ButtonStyle="ButtonStyle.Secondary" 
+                            Click="@(() => Navigation.NavigateTo("/teacher/import-students"))" />
+            </RadzenStack>
+        </RadzenColumn>
+    </RadzenRow>
+
+    @if (isLoading)
+    {
+        <RadzenCard>
+            <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="1rem">
+                <RadzenProgressBarCircular ShowValue="false" Size="ProgressBarCircularSize.Medium" />
+                <RadzenText>Loading students...</RadzenText>
+            </RadzenStack>
+        </RadzenCard>
+    }
+    else if (students?.Any() == true)
+    {
+        <RadzenDataGrid AllowFiltering="true" AllowColumnResize="true" AllowAlternatingRows="false" FilterMode="FilterMode.Advanced"
+                        AllowSorting="true" PageSize="15" AllowPaging="true" PagerHorizontalAlign="HorizontalAlign.Left" ShowPagingSummary="true"
+                        Data="@students" TItem="ApplicationUser" ColumnWidth="300px" LogicalFilterOperator="LogicalFilterOperator.Or">
+            <Columns>
+                <RadzenDataGridColumn TItem="ApplicationUser" Property="StudentId" Title="Student ID" Frozen="true" Width="120px" />
+                <RadzenDataGridColumn TItem="ApplicationUser" Property="FirstName" Title="Name" Width="180px">
+                    <Template Context="data">
+                        @($"{data.FirstName} {data.LastName}")
+                    </Template>
+                </RadzenDataGridColumn>
+                <RadzenDataGridColumn TItem="ApplicationUser" Property="Email" Title="Email" Width="200px" />
+                <RadzenDataGridColumn TItem="ApplicationUser" Property="CreatedAt" Title="Registered" Width="120px">
+                    <Template Context="data">
+                        @data.CreatedAt.ToString("MM/dd/yyyy")
+                    </Template>
+                </RadzenDataGridColumn>
+                <RadzenDataGridColumn TItem="ApplicationUser" Property="IsActive" Title="Status" Width="100px">
+                    <Template Context="data">
+                        <RadzenBadge BadgeStyle="@(data.IsActive ? BadgeStyle.Success : BadgeStyle.Danger)" 
+                                   Text="@(data.IsActive ? "Active" : "Inactive")" />
+                    </Template>
+                </RadzenDataGridColumn>
+                <RadzenDataGridColumn TItem="ApplicationUser" Context="data" Filterable="false" Sortable="false" TextAlign="TextAlign.Right" Width="120px" Title="Actions">
+                    <Template Context="data">
+                        <RadzenButton Icon="visibility" ButtonStyle="ButtonStyle.Light" Variant="Variant.Flat" Size="ButtonSize.Medium" 
+                                    Click="@(() => ViewStudent(data))" @onclick:stopPropagation="true" />
+                        <RadzenButton Icon="edit" ButtonStyle="ButtonStyle.Light" Variant="Variant.Flat" Size="ButtonSize.Medium" 
+                                    Click="@(() => EditStudent(data))" @onclick:stopPropagation="true" />
+                        <RadzenButton Icon="@(data.IsActive ? "block" : "check_circle")" 
+                                    ButtonStyle="@(data.IsActive ? ButtonStyle.Warning : ButtonStyle.Success)" 
+                                    Variant="Variant.Flat" Size="ButtonSize.Medium" 
+                                    Click="@(() => ToggleStudentStatus(data))" @onclick:stopPropagation="true" />
+                    </Template>
+                </RadzenDataGridColumn>
+            </Columns>
+        </RadzenDataGrid>
+    }
+    else
+    {
+        <RadzenCard>
+            <RadzenStack Gap="1rem" class="text-center">
+                <RadzenIcon Icon="people" Style="font-size: 4rem; color: var(--rz-secondary);" />
+                <RadzenText TextStyle="TextStyle.H6">No Students Yet</RadzenText>
+                <RadzenText TextStyle="TextStyle.Body2" class="text-muted">
+                    Add students to start managing their accounts and exam access.
+                </RadzenText>
+                <RadzenStack Orientation="Orientation.Horizontal" Gap="1rem" JustifyContent="JustifyContent.Center">
+                    <RadzenButton Text="Add Student" Icon="person_add" ButtonStyle="ButtonStyle.Primary" 
+                                Click="@(() => Navigation.NavigateTo("/teacher/add-student"))" />
+                    <RadzenButton Text="Import Students" Icon="upload_file" ButtonStyle="ButtonStyle.Secondary" 
+                                Click="@(() => Navigation.NavigateTo("/teacher/import-students"))" />
+                </RadzenStack>
+            </RadzenStack>
+        </RadzenCard>
+    }
+</RadzenStack>
+
+@code {
+    [Inject] private NavigationManager Navigation { get; set; } = default!;
+
+    private List<ApplicationUser>? students;
+    private bool isLoading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadStudents();
+    }
+
+    private async Task LoadStudents()
+    {
+        try
+        {
+            isLoading = true;
+            students = await UserService.GetStudentsAsync();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading students: {ex.Message}");
+            NotificationService.Notify(NotificationSeverity.Error, "Error", "Failed to load students");
+            students = new List<ApplicationUser>();
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void ViewStudent(ApplicationUser student)
+    {
+        Navigation.NavigateTo($"/teacher/student/{student.Id}");
+    }
+
+    private async Task EditStudent(ApplicationUser student)
+    {
+        var result = await DialogService.OpenAsync<EditStudentDialog>("Edit Student", 
+            new Dictionary<string, object>() { { "Student", student } }, 
+            new DialogOptions() { Width = "500px", Height = "600px" });
+
+        if (result != null)
+        {
+            await LoadStudents();
+        }
+    }
+
+    private async Task ToggleStudentStatus(ApplicationUser student)
+    {
+        var fullName = $"{student.FirstName} {student.LastName}";
+        var action = student.IsActive ? "deactivate" : "activate";
+        var confirm = await DialogService.Confirm($"Are you sure you want to {action} {fullName}?", 
+            $"{char.ToUpper(action[0])}{action.Substring(1)} Student", 
+            new ConfirmOptions() { OkButtonText = char.ToUpper(action[0]) + action.Substring(1), CancelButtonText = "Cancel" });
+
+        if (confirm == true)
+        {
+            try
+            {
+                await UserService.ToggleUserStatusAsync(student.Id);
+                NotificationService.Notify(NotificationSeverity.Success, "Success", 
+                    $"Student {action}d successfully");
+                await LoadStudents();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error toggling student status: {ex.Message}");
+                NotificationService.Notify(NotificationSeverity.Error, "Error", 
+                    $"Failed to {action} student");
+            }
+        }
+    }
+}

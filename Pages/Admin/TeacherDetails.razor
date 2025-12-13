@@ -1,0 +1,257 @@
+@page "/admin/teacher/{Id}"
+@attribute [Authorize(Roles = UserRoles.Admin)]
+@inject UserManager<ApplicationUser> UserManager
+@inject IExamService ExamService
+@inject NavigationManager Navigation
+
+<PageTitle>Teacher Profile - PeP v5.0</PageTitle>
+
+<RadzenStack Gap="1rem">
+    <RadzenBreadCrumb>
+        <RadzenBreadCrumbItem Path="/" Text="Home" />
+        <RadzenBreadCrumbItem Path="/admin/teachers" Text="Manage Teachers" />
+        <RadzenBreadCrumbItem Text="Teacher Profile" />
+    </RadzenBreadCrumb>
+
+    @if (isLoading)
+    {
+        <RadzenCard>
+            <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="1rem">
+                <RadzenProgressBarCircular ShowValue="false" Size="ProgressBarCircularSize.Medium" />
+                <RadzenText>Loading teacher details...</RadzenText>
+            </RadzenStack>
+        </RadzenCard>
+    }
+    else if (!string.IsNullOrEmpty(loadError))
+    {
+        <RadzenAlert AlertStyle="AlertStyle.Danger" Icon="error">
+            @loadError
+        </RadzenAlert>
+        <RadzenButton Text="Back to Teachers" Icon="arrow_back" ButtonStyle="ButtonStyle.Primary" Click="@(() => Navigation.NavigateTo("/admin/teachers"))" />
+    }
+    else if (teacher != null)
+    {
+        <RadzenStack Gap="1rem">
+            <RadzenCard>
+                <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween" AlignItems="AlignItems.Center">
+                    <RadzenStack Gap="0.35rem">
+                        <RadzenText TextStyle="TextStyle.H4" TagName="TagName.H1" Style="margin:0;">@teacher.FullName</RadzenText>
+                        <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" AlignItems="AlignItems.Center">
+                            <RadzenBadge Text="@teacher.Email" BadgeStyle="BadgeStyle.Info" />
+                            <RadzenBadge Text="@($"Department: {teacher.Department ?? "N/A"}")" BadgeStyle="BadgeStyle.Light" />
+                        </RadzenStack>
+                    </RadzenStack>
+                    <RadzenStack Gap="0.25rem" AlignItems="AlignItems.End">
+                        <RadzenBadge Text="@($"Status: {(teacher.IsActive ? "Active" : "Inactive")}")" BadgeStyle="@(teacher.IsActive ? BadgeStyle.Success : BadgeStyle.Danger)" />
+                        <RadzenText TextStyle="TextStyle.Caption" class="text-muted">
+                            Joined @teacher.CreatedAt.ToLocalTime().ToString("MM/dd/yyyy")
+                        </RadzenText>
+                    </RadzenStack>
+                </RadzenStack>
+            </RadzenCard>
+
+            <RadzenRow Gutter="16px">
+                <RadzenColumn Size="12" SizeMD="3">
+                    <RadzenCard>
+                        <RadzenStack Gap="0.25rem" class="text-center">
+                            <RadzenText TextStyle="TextStyle.Caption" class="text-muted">Active Exams</RadzenText>
+                            <RadzenText TextStyle="TextStyle.H5">@activeExams</RadzenText>
+                        </RadzenStack>
+                    </RadzenCard>
+                </RadzenColumn>
+                <RadzenColumn Size="12" SizeMD="3">
+                    <RadzenCard>
+                        <RadzenStack Gap="0.25rem" class="text-center">
+                            <RadzenText TextStyle="TextStyle.Caption" class="text-muted">Students Engaged</RadzenText>
+                            <RadzenText TextStyle="TextStyle.H5">@uniqueStudents</RadzenText>
+                        </RadzenStack>
+                    </RadzenCard>
+                </RadzenColumn>
+                <RadzenColumn Size="12" SizeMD="3">
+                    <RadzenCard>
+                        <RadzenStack Gap="0.25rem" class="text-center">
+                            <RadzenText TextStyle="TextStyle.Caption" class="text-muted">Total Attempts</RadzenText>
+                            <RadzenText TextStyle="TextStyle.H5">@attempts.Count</RadzenText>
+                        </RadzenStack>
+                    </RadzenCard>
+                </RadzenColumn>
+                <RadzenColumn Size="12" SizeMD="3">
+                    <RadzenCard>
+                        <RadzenStack Gap="0.25rem" class="text-center">
+                            <RadzenText TextStyle="TextStyle.Caption" class="text-muted">Average Score</RadzenText>
+                            <RadzenText TextStyle="TextStyle.H5">@($"{averageScore:F1}%")</RadzenText>
+                        </RadzenStack>
+                    </RadzenCard>
+                </RadzenColumn>
+            </RadzenRow>
+
+            <RadzenCard>
+                <RadzenStack Gap="0.75rem">
+                    <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" JustifyContent="JustifyContent.SpaceBetween">
+                        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
+                            <RadzenIcon Icon="library_books" Style="color:var(--rz-primary);" />
+                            <RadzenText TextStyle="TextStyle.H5" TagName="TagName.H2" Style="margin:0;">Exams</RadzenText>
+                        </RadzenStack>
+                        <RadzenButton Text="Back to Teachers" Icon="arrow_back" ButtonStyle="ButtonStyle.Light" Click="@(() => Navigation.NavigateTo("/admin/teachers"))" />
+                    </RadzenStack>
+
+                    @if (exams.Any())
+                    {
+                        <RadzenDataGrid Data="@exams" TItem="Exam" AllowPaging="true" PageSize="10" AllowSorting="true">
+                            <Columns>
+                                <RadzenDataGridColumn TItem="Exam" Property="Title" Title="Title" Width="220px" />
+                                <RadzenDataGridColumn TItem="Exam" Property="Course.Name" Title="Course" Width="160px">
+                                    <Template Context="data">
+                                        @data.Course?.Name
+                                    </Template>
+                                </RadzenDataGridColumn>
+                                <RadzenDataGridColumn TItem="Exam" Property="NumberOfQuestions" Title="Questions" Width="120px" />
+                                <RadzenDataGridColumn TItem="Exam" Title="Attempts" Width="120px">
+                                    <Template Context="data">
+                                        @data.ExamAttempts?.Count
+                                    </Template>
+                                </RadzenDataGridColumn>
+                                <RadzenDataGridColumn TItem="Exam" Property="CreatedAt" Title="Created" Width="160px">
+                                    <Template Context="data">
+                                        @data.CreatedAt.ToLocalTime().ToString("MM/dd/yyyy")
+                                    </Template>
+                                </RadzenDataGridColumn>
+                                <RadzenDataGridColumn TItem="Exam" Title="Status" Width="120px">
+                                    <Template Context="data">
+                                        <RadzenBadge Text="@(data.IsActive ? "Active" : "Inactive")" BadgeStyle="@(data.IsActive ? BadgeStyle.Success : BadgeStyle.Danger)" />
+                                    </Template>
+                                </RadzenDataGridColumn>
+                            </Columns>
+                        </RadzenDataGrid>
+                    }
+                    else
+                    {
+                        <RadzenAlert AlertStyle="AlertStyle.Info" Icon="info">
+                            This teacher has not created any exams yet.
+                        </RadzenAlert>
+                    }
+                </RadzenStack>
+            </RadzenCard>
+
+            <RadzenCard>
+                <RadzenStack Gap="0.75rem">
+                    <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
+                        <RadzenIcon Icon="analytics" Style="color:var(--rz-secondary);" />
+                        <RadzenText TextStyle="TextStyle.H5" TagName="TagName.H2" Style="margin:0;">Recent Attempts</RadzenText>
+                    </RadzenStack>
+
+                    @if (attempts.Any())
+                    {
+                        <RadzenDataGrid Data="@attempts" TItem="ExamAttempt" AllowPaging="true" PageSize="10" AllowSorting="true">
+                            <Columns>
+                                <RadzenDataGridColumn TItem="ExamAttempt" Property="Exam.Title" Title="Exam" Width="220px" />
+                                <RadzenDataGridColumn TItem="ExamAttempt" Property="Student.FullName" Title="Student" Width="200px">
+                                    <Template Context="data">
+                                        @($"{data.Student.FirstName} {data.Student.LastName}")
+                                    </Template>
+                                </RadzenDataGridColumn>
+                                <RadzenDataGridColumn TItem="ExamAttempt" Title="Score" Width="120px">
+                                    <Template Context="data">
+                                        @($"{data.TotalScore:F1}")
+                                    </Template>
+                                </RadzenDataGridColumn>
+                                <RadzenDataGridColumn TItem="ExamAttempt" Property="Status" Title="Status" Width="120px">
+                                    <Template Context="data">
+                                        <RadzenBadge Text="@data.Status.ToString()" BadgeStyle="GetStatusBadge(data.Status)" />
+                                    </Template>
+                                </RadzenDataGridColumn>
+                                <RadzenDataGridColumn TItem="ExamAttempt" Property="StartedAt" Title="Started" Width="160px">
+                                    <Template Context="data">
+                                        @data.StartedAt.ToLocalTime().ToString("MM/dd/yyyy HH:mm")
+                                    </Template>
+                                </RadzenDataGridColumn>
+                                <RadzenDataGridColumn TItem="ExamAttempt" Property="SubmittedAt" Title="Submitted" Width="160px">
+                                    <Template Context="data">
+                                        @data.SubmittedAt?.ToLocalTime().ToString("MM/dd/yyyy HH:mm")
+                                    </Template>
+                                </RadzenDataGridColumn>
+                            </Columns>
+                        </RadzenDataGrid>
+                    }
+                    else
+                    {
+                        <RadzenAlert AlertStyle="AlertStyle.Info" Icon="info">
+                            No attempts recorded for this teacher's exams yet.
+                        </RadzenAlert>
+                    }
+                </RadzenStack>
+            </RadzenCard>
+        </RadzenStack>
+    }
+</RadzenStack>
+
+@code {
+    [Parameter] public string Id { get; set; } = string.Empty;
+
+    private ApplicationUser? teacher;
+    private List<Exam> exams = new();
+    private List<ExamAttempt> attempts = new();
+    private bool isLoading = true;
+    private string? loadError;
+    private int activeExams;
+    private int uniqueStudents;
+    private decimal averageScore;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        await LoadTeacherAsync();
+    }
+
+    private async Task LoadTeacherAsync()
+    {
+        isLoading = true;
+        loadError = null;
+        exams.Clear();
+        attempts.Clear();
+        activeExams = 0;
+        uniqueStudents = 0;
+        averageScore = 0;
+
+        try
+        {
+            teacher = await UserManager.FindByIdAsync(Id);
+            if (teacher == null || !await UserManager.IsInRoleAsync(teacher, UserRoles.Teacher))
+            {
+                loadError = "Teacher not found.";
+                return;
+            }
+
+            exams = await ExamService.GetExamsForTeacherAsync(teacher.Id);
+            attempts = await ExamService.GetAllExamAttemptsForTeacherAsync(teacher.Id);
+
+            activeExams = exams.Count(e => e.IsActive);
+            uniqueStudents = attempts.Select(a => a.StudentId).Distinct().Count();
+
+            if (attempts.Any())
+            {
+                averageScore = attempts.Average(a => a.TotalScore);
+            }
+        }
+        catch (Exception ex)
+        {
+            loadError = "An error occurred while loading this teacher.";
+            Console.WriteLine($"Teacher load error: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private BadgeStyle GetStatusBadge(ExamAttemptStatus status)
+    {
+        return status switch
+        {
+            ExamAttemptStatus.Completed => BadgeStyle.Success,
+            ExamAttemptStatus.InProgress => BadgeStyle.Info,
+            ExamAttemptStatus.Abandoned => BadgeStyle.Warning,
+            ExamAttemptStatus.TimeExpired => BadgeStyle.Danger,
+            _ => BadgeStyle.Secondary
+        };
+    }
+}

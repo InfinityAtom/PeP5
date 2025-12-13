@@ -1,0 +1,489 @@
+@page "/student/results"
+@using Microsoft.AspNetCore.Components.Authorization
+@attribute [Authorize(Roles = UserRoles.Student)]
+@inject IExamService ExamService
+@inject UserManager<ApplicationUser> UserManager
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject NavigationManager Navigation
+@inject NotificationService NotificationService
+
+<PageTitle>My Results - PeP v5.0</PageTitle>
+
+@if (isLoading)
+{
+    <RadzenRow JustifyContent="JustifyContent.Center" AlignItems="AlignItems.Center">
+        <RadzenColumn Size="12">
+            <RadzenCard>
+                <RadzenStack AlignItems="AlignItems.Center" Gap="1rem">
+                    <RadzenProgressBarCircular ShowValue="false" Size="ProgressBarCircularSize.Large" />
+                    <RadzenText TextStyle="TextStyle.H6">Loading your results...</RadzenText>
+                </RadzenStack>
+            </RadzenCard>
+        </RadzenColumn>
+    </RadzenRow>
+}
+else if (selectedAttempt != null)
+{
+    <!-- Detailed Result View -->
+    <RadzenStack Gap="1rem">
+        <!-- Back Button & Header -->
+        <RadzenCard>
+            <RadzenRow JustifyContent="JustifyContent.SpaceBetween" AlignItems="AlignItems.Center">
+                <RadzenButton Text="Back to Results" 
+                            Icon="arrow_back" 
+                            ButtonStyle="ButtonStyle.Light"
+                            Click="@BackToList" />
+                <RadzenText TextStyle="TextStyle.H5">
+                    <RadzenIcon Icon="assignment_turned_in" IconColor="@Colors.Primary" /> Exam Result Details
+                </RadzenText>
+            </RadzenRow>
+        </RadzenCard>
+
+        <!-- Score Overview -->
+        <RadzenRow Gap="1rem">
+            <RadzenColumn Size="12" SizeMD="4">
+                <RadzenCard>
+                    <RadzenStack AlignItems="AlignItems.Center" Gap="0.5rem">
+                        <RadzenText TextStyle="TextStyle.Subtitle2">YOUR SCORE</RadzenText>
+                        <RadzenProgressBarCircular Value="@((double)selectedAttempt.TotalScore)" 
+                                                   Max="100" 
+                                                   ShowValue="true"
+                                                   Size="ProgressBarCircularSize.Large"
+                                                   ProgressBarStyle="@GetScoreProgressStyle(selectedAttempt.TotalScore)" />
+                        <RadzenBadge BadgeStyle="@GetScoreBadgeStyle(selectedAttempt.TotalScore)" 
+                                    Text="@GetScoreGrade(selectedAttempt.TotalScore)" 
+                                    IsPill="true" />
+                    </RadzenStack>
+                </RadzenCard>
+            </RadzenColumn>
+            <RadzenColumn Size="12" SizeMD="8">
+                <RadzenCard>
+                    <RadzenStack Gap="1rem">
+                        <RadzenText TextStyle="TextStyle.H5">@selectedAttempt.Exam?.Title</RadzenText>
+                        <RadzenText TextStyle="TextStyle.Body1">@selectedAttempt.Exam?.Course?.Name</RadzenText>
+                        
+                        <RadzenRow Gap="1rem">
+                            <RadzenColumn Size="6" SizeMD="3">
+                                <RadzenStack AlignItems="AlignItems.Center" Gap="0">
+                                    <RadzenIcon Icon="calendar_today" IconColor="@Colors.Secondary" />
+                                    <RadzenText TextStyle="TextStyle.Caption">Date Taken</RadzenText>
+                                    <RadzenText TextStyle="TextStyle.Body2">@selectedAttempt.StartedAt.ToString("MMM dd, yyyy")</RadzenText>
+                                </RadzenStack>
+                            </RadzenColumn>
+                            <RadzenColumn Size="6" SizeMD="3">
+                                <RadzenStack AlignItems="AlignItems.Center" Gap="0">
+                                    <RadzenIcon Icon="timer" IconColor="@Colors.Secondary" />
+                                    <RadzenText TextStyle="TextStyle.Caption">Time Spent</RadzenText>
+                                    <RadzenText TextStyle="TextStyle.Body2">@GetTimeSpent(selectedAttempt)</RadzenText>
+                                </RadzenStack>
+                            </RadzenColumn>
+                            <RadzenColumn Size="6" SizeMD="3">
+                                <RadzenStack AlignItems="AlignItems.Center" Gap="0">
+                                    <RadzenIcon Icon="check_circle" IconColor="@Colors.Success" />
+                                    <RadzenText TextStyle="TextStyle.Caption">Correct</RadzenText>
+                                    <RadzenText TextStyle="TextStyle.Body2">@GetCorrectCount(selectedAttempt) / @selectedAttempt.StudentAnswers.Count</RadzenText>
+                                </RadzenStack>
+                            </RadzenColumn>
+                            <RadzenColumn Size="6" SizeMD="3">
+                                <RadzenStack AlignItems="AlignItems.Center" Gap="0">
+                                    <RadzenIcon Icon="info" IconColor="@Colors.Info" />
+                                    <RadzenText TextStyle="TextStyle.Caption">Status</RadzenText>
+                                    <RadzenBadge BadgeStyle="@GetStatusBadgeStyle(selectedAttempt.Status)" 
+                                                Text="@selectedAttempt.Status.ToString()" IsPill="true" />
+                                </RadzenStack>
+                            </RadzenColumn>
+                        </RadzenRow>
+                    </RadzenStack>
+                </RadzenCard>
+            </RadzenColumn>
+        </RadzenRow>
+
+        <!-- Questions Breakdown -->
+        <RadzenCard>
+            <RadzenStack Gap="1rem">
+                <RadzenText TextStyle="TextStyle.H6">
+                    <RadzenIcon Icon="quiz" /> Questions Breakdown
+                </RadzenText>
+
+                <RadzenDataGrid TItem="StudentAnswer" 
+                               Data="@selectedAttempt.StudentAnswers"
+                               AllowPaging="true"
+                               PageSize="10"
+                               PagerHorizontalAlign="HorizontalAlign.Center"
+                               AllowSorting="true"
+                               Density="Density.Compact">
+                    <Columns>
+                        <RadzenDataGridColumn TItem="StudentAnswer" Title="#" Width="60px" TextAlign="TextAlign.Center">
+                            <Template Context="answer">
+                                <RadzenBadge BadgeStyle="BadgeStyle.Secondary" 
+                                           Text="@((selectedAttempt.StudentAnswers.ToList().IndexOf(answer) + 1).ToString())" 
+                                           IsPill="true" />
+                            </Template>
+                        </RadzenDataGridColumn>
+                        <RadzenDataGridColumn TItem="StudentAnswer" Title="Question">
+                            <Template Context="answer">
+                                <RadzenText TextStyle="TextStyle.Body2">
+                                    @(answer.Question?.QuestionText?.Length > 80 
+                                        ? answer.Question.QuestionText.Substring(0, 80) + "..." 
+                                        : answer.Question?.QuestionText)
+                                </RadzenText>
+                            </Template>
+                        </RadzenDataGridColumn>
+                        <RadzenDataGridColumn TItem="StudentAnswer" Title="Your Answer" Width="200px">
+                            <Template Context="answer">
+                                @if (answer.SelectedChoiceId.HasValue)
+                                {
+                                    var choice = answer.Question?.Choices?.FirstOrDefault(c => c.Id == answer.SelectedChoiceId);
+                                    <RadzenText TextStyle="TextStyle.Body2">@choice?.ChoiceText</RadzenText>
+                                }
+                                else if (!string.IsNullOrEmpty(answer.SelectedChoiceIds))
+                                {
+                                    <RadzenText TextStyle="TextStyle.Body2">Multiple selections</RadzenText>
+                                }
+                                else
+                                {
+                                    <RadzenText TextStyle="TextStyle.Caption">Not answered</RadzenText>
+                                }
+                            </Template>
+                        </RadzenDataGridColumn>
+                        <RadzenDataGridColumn TItem="StudentAnswer" Title="Result" Width="100px" TextAlign="TextAlign.Center">
+                            <Template Context="answer">
+                                @if (answer.PointsEarned > 0)
+                                {
+                                    <RadzenIcon Icon="check_circle" IconColor="@Colors.Success" />
+                                }
+                                else
+                                {
+                                    <RadzenIcon Icon="cancel" IconColor="@Colors.Danger" />
+                                }
+                            </Template>
+                        </RadzenDataGridColumn>
+                        <RadzenDataGridColumn TItem="StudentAnswer" Title="Points" Width="100px" TextAlign="TextAlign.Center">
+                            <Template Context="answer">
+                                <RadzenText TextStyle="TextStyle.Body2">
+                                    @answer.PointsEarned / @answer.Question?.Points
+                                </RadzenText>
+                            </Template>
+                        </RadzenDataGridColumn>
+                    </Columns>
+                </RadzenDataGrid>
+            </RadzenStack>
+        </RadzenCard>
+    </RadzenStack>
+}
+else if (examAttempts?.Any() == true)
+{
+    <!-- Results List View -->
+    <RadzenStack Gap="1rem">
+        <!-- Header -->
+        <RadzenCard>
+            <RadzenRow JustifyContent="JustifyContent.SpaceBetween" AlignItems="AlignItems.Center">
+                <RadzenStack Gap="0">
+                    <RadzenText TextStyle="TextStyle.H4" TagName="TagName.H1">
+                        <RadzenIcon Icon="assessment" IconColor="@Colors.Primary" /> My Exam Results
+                    </RadzenText>
+                    <RadzenText TextStyle="TextStyle.Body1">
+                        View your completed exam attempts and scores
+                    </RadzenText>
+                </RadzenStack>
+                <RadzenButton Text="Take New Exam" 
+                            Icon="play_arrow" 
+                            ButtonStyle="ButtonStyle.Primary"
+                            Click="@(() => Navigation.NavigateTo("/student/take-exam"))" />
+            </RadzenRow>
+        </RadzenCard>
+
+        <!-- Stats Summary -->
+        <RadzenRow Gap="1rem">
+            <RadzenColumn Size="6" SizeMD="3">
+                <RadzenCard>
+                    <RadzenStack AlignItems="AlignItems.Center" Gap="0.5rem">
+                        <RadzenIcon Icon="assignment" IconColor="@Colors.Primary" />
+                        <RadzenText TextStyle="TextStyle.H3">@examAttempts.Count</RadzenText>
+                        <RadzenText TextStyle="TextStyle.Caption">Total Exams</RadzenText>
+                    </RadzenStack>
+                </RadzenCard>
+            </RadzenColumn>
+            <RadzenColumn Size="6" SizeMD="3">
+                <RadzenCard>
+                    <RadzenStack AlignItems="AlignItems.Center" Gap="0.5rem">
+                        <RadzenIcon Icon="trending_up" IconColor="@Colors.Success" />
+                        <RadzenText TextStyle="TextStyle.H3">@GetAverageScore().ToString("F1")%</RadzenText>
+                        <RadzenText TextStyle="TextStyle.Caption">Average Score</RadzenText>
+                    </RadzenStack>
+                </RadzenCard>
+            </RadzenColumn>
+            <RadzenColumn Size="6" SizeMD="3">
+                <RadzenCard>
+                    <RadzenStack AlignItems="AlignItems.Center" Gap="0.5rem">
+                        <RadzenIcon Icon="emoji_events" IconColor="@Colors.Warning" />
+                        <RadzenText TextStyle="TextStyle.H3">@GetHighestScore().ToString("F1")%</RadzenText>
+                        <RadzenText TextStyle="TextStyle.Caption">Best Score</RadzenText>
+                    </RadzenStack>
+                </RadzenCard>
+            </RadzenColumn>
+            <RadzenColumn Size="6" SizeMD="3">
+                <RadzenCard>
+                    <RadzenStack AlignItems="AlignItems.Center" Gap="0.5rem">
+                        <RadzenIcon Icon="check_circle" IconColor="@Colors.Info" />
+                        <RadzenText TextStyle="TextStyle.H3">@GetPassedCount()</RadzenText>
+                        <RadzenText TextStyle="TextStyle.Caption">Passed (&gt;=70%)</RadzenText>
+                    </RadzenStack>
+                </RadzenCard>
+            </RadzenColumn>
+        </RadzenRow>
+
+        <!-- Results Table -->
+        <RadzenCard>
+            <RadzenDataGrid TItem="ExamAttempt" 
+                           Data="@examAttempts"
+                           AllowFiltering="true"
+                           FilterMode="FilterMode.Simple"
+                           AllowSorting="true"
+                           AllowPaging="true"
+                           PageSize="10"
+                           PagerHorizontalAlign="HorizontalAlign.Center"
+                           ShowPagingSummary="true"
+                           Density="Density.Default"
+                           AllowColumnResize="true">
+                <Columns>
+                    <RadzenDataGridColumn TItem="ExamAttempt" Property="Exam.Title" Title="Exam Name" Width="200px">
+                        <Template Context="data">
+                            <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
+                                <RadzenIcon Icon="description" IconColor="@Colors.Primary" />
+                                <RadzenText TextStyle="TextStyle.Body1">@data.Exam?.Title</RadzenText>
+                            </RadzenStack>
+                        </Template>
+                    </RadzenDataGridColumn>
+                    <RadzenDataGridColumn TItem="ExamAttempt" Property="Exam.Course.Name" Title="Course" Width="150px" />
+                    <RadzenDataGridColumn TItem="ExamAttempt" Property="StartedAt" Title="Date" Width="120px" TextAlign="TextAlign.Center">
+                        <Template Context="data">
+                            <RadzenStack AlignItems="AlignItems.Center" Gap="0">
+                                <RadzenText TextStyle="TextStyle.Body2">@data.StartedAt.ToString("MMM dd")</RadzenText>
+                                <RadzenText TextStyle="TextStyle.Caption">@data.StartedAt.ToString("yyyy")</RadzenText>
+                            </RadzenStack>
+                        </Template>
+                    </RadzenDataGridColumn>
+                    <RadzenDataGridColumn TItem="ExamAttempt" Property="TotalScore" Title="Score" Width="150px" TextAlign="TextAlign.Center">
+                        <Template Context="data">
+                            <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" JustifyContent="JustifyContent.Center" Gap="0.5rem">
+                                <RadzenProgressBarCircular Value="@((double)data.TotalScore)" 
+                                                          Max="100" 
+                                                          ShowValue="false"
+                                                          Size="ProgressBarCircularSize.ExtraSmall"
+                                                          ProgressBarStyle="@GetScoreProgressStyle(data.TotalScore)" />
+                                <RadzenBadge BadgeStyle="@GetScoreBadgeStyle(data.TotalScore)" 
+                                           Text="@($"{data.TotalScore:F0}%")" 
+                                           IsPill="true" />
+                            </RadzenStack>
+                        </Template>
+                    </RadzenDataGridColumn>
+                    <RadzenDataGridColumn TItem="ExamAttempt" Property="Status" Title="Status" Width="120px" TextAlign="TextAlign.Center">
+                        <Template Context="data">
+                            <RadzenBadge BadgeStyle="@GetStatusBadgeStyle(data.Status)" 
+                                        Text="@data.Status.ToString()" 
+                                        IsPill="true" />
+                        </Template>
+                    </RadzenDataGridColumn>
+                    <RadzenDataGridColumn TItem="ExamAttempt" Title="Actions" Width="100px" TextAlign="TextAlign.Center" Filterable="false" Sortable="false">
+                        <Template Context="data">
+                            <RadzenButton Icon="visibility" 
+                                        Text="View"
+                                        ButtonStyle="ButtonStyle.Primary" 
+                                        Variant="Variant.Text"
+                                        Size="ButtonSize.Small"
+                                        Click="@(() => ViewDetails(data))" />
+                        </Template>
+                    </RadzenDataGridColumn>
+                </Columns>
+            </RadzenDataGrid>
+        </RadzenCard>
+    </RadzenStack>
+}
+else
+{
+    <!-- Empty State -->
+    <RadzenRow JustifyContent="JustifyContent.Center" AlignItems="AlignItems.Center">
+        <RadzenColumn Size="12" SizeMD="6">
+            <RadzenCard>
+                <RadzenStack AlignItems="AlignItems.Center" Gap="1.5rem">
+                    <RadzenIcon Icon="assignment" IconColor="@Colors.Secondary" />
+                    <RadzenText TextStyle="TextStyle.H5" TextAlign="TextAlign.Center">No Results Yet</RadzenText>
+                    <RadzenText TextStyle="TextStyle.Body1" TextAlign="TextAlign.Center">
+                        You haven't completed any exams yet. Take your first exam to see your results here.
+                    </RadzenText>
+                    <RadzenButton Text="Take an Exam" 
+                                Icon="play_arrow" 
+                                ButtonStyle="ButtonStyle.Primary"
+                                Size="ButtonSize.Large"
+                                Click="@(() => Navigation.NavigateTo("/student/take-exam"))" />
+                </RadzenStack>
+            </RadzenCard>
+        </RadzenColumn>
+    </RadzenRow>
+}
+
+@code {
+    [Parameter] public int? AttemptId { get; set; }
+
+    private List<ExamAttempt>? examAttempts;
+    private ExamAttempt? selectedAttempt;
+    private bool isLoading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadResults();
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (AttemptId.HasValue && (selectedAttempt == null || selectedAttempt.Id != AttemptId.Value))
+        {
+            await LoadAttemptDetails(AttemptId.Value);
+        }
+        else if (!AttemptId.HasValue)
+        {
+            selectedAttempt = null;
+        }
+    }
+
+    private async Task LoadResults()
+    {
+        try
+        {
+            isLoading = true;
+            var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            if (authState?.User?.Identity?.IsAuthenticated == true)
+            {
+                var userId = UserManager.GetUserId(authState.User);
+                if (!string.IsNullOrEmpty(userId))
+                {
+                    examAttempts = await ExamService.GetCompletedExamAttemptsAsync(userId);
+                    
+                    if (AttemptId.HasValue)
+                    {
+                        await LoadAttemptDetails(AttemptId.Value);
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            NotificationService.Notify(NotificationSeverity.Error, "Error", "Failed to load results.");
+            Console.WriteLine($"Error loading results: {ex.Message}");
+            examAttempts = new List<ExamAttempt>();
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task LoadAttemptDetails(int attemptId)
+    {
+        try
+        {
+            var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            var userId = UserManager.GetUserId(authState.User);
+            if (!string.IsNullOrEmpty(userId))
+            {
+                selectedAttempt = await ExamService.GetExamResultAsync(attemptId, userId);
+            }
+        }
+        catch (Exception ex)
+        {
+            NotificationService.Notify(NotificationSeverity.Error, "Error", "Failed to load exam details.");
+            Console.WriteLine($"Error loading attempt: {ex.Message}");
+        }
+    }
+
+    private void ViewDetails(ExamAttempt attempt)
+    {
+        Navigation.NavigateTo($"/student/results/{attempt.Id}");
+    }
+
+    private void BackToList()
+    {
+        selectedAttempt = null;
+        Navigation.NavigateTo("/student/results");
+    }
+
+    private decimal GetAverageScore()
+    {
+        if (examAttempts == null || !examAttempts.Any()) return 0;
+        return examAttempts.Average(a => a.TotalScore);
+    }
+
+    private decimal GetHighestScore()
+    {
+        if (examAttempts == null || !examAttempts.Any()) return 0;
+        return examAttempts.Max(a => a.TotalScore);
+    }
+
+    private int GetPassedCount()
+    {
+        if (examAttempts == null) return 0;
+        return examAttempts.Count(a => a.TotalScore >= 70);
+    }
+
+    private int GetCorrectCount(ExamAttempt attempt)
+    {
+        return attempt.StudentAnswers?.Count(a => a.PointsEarned > 0) ?? 0;
+    }
+
+    private string GetTimeSpent(ExamAttempt attempt)
+    {
+        if (attempt.SubmittedAt.HasValue)
+        {
+            var duration = attempt.SubmittedAt.Value - attempt.StartedAt;
+            return $"{(int)duration.TotalMinutes} min";
+        }
+        return "N/A";
+    }
+
+    private string GetScoreGrade(decimal score)
+    {
+        return score switch
+        {
+            >= 90 => "Excellent",
+            >= 80 => "Good",
+            >= 70 => "Pass",
+            >= 60 => "Needs Work",
+            _ => "Failed"
+        };
+    }
+
+    private ProgressBarStyle GetScoreProgressStyle(decimal score)
+    {
+        return score switch
+        {
+            >= 90 => ProgressBarStyle.Success,
+            >= 80 => ProgressBarStyle.Primary,
+            >= 70 => ProgressBarStyle.Warning,
+            _ => ProgressBarStyle.Danger
+        };
+    }
+
+    private BadgeStyle GetScoreBadgeStyle(decimal score)
+    {
+        return score switch
+        {
+            >= 90 => BadgeStyle.Success,
+            >= 80 => BadgeStyle.Primary,
+            >= 70 => BadgeStyle.Warning,
+            _ => BadgeStyle.Danger
+        };
+    }
+
+    private BadgeStyle GetStatusBadgeStyle(ExamAttemptStatus status)
+    {
+        return status switch
+        {
+            ExamAttemptStatus.Completed => BadgeStyle.Success,
+            ExamAttemptStatus.InProgress => BadgeStyle.Info,
+            ExamAttemptStatus.Abandoned => BadgeStyle.Warning,
+            ExamAttemptStatus.TimeExpired => BadgeStyle.Danger,
+            _ => BadgeStyle.Secondary
+        };
+    }
+}

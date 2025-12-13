@@ -1,0 +1,29 @@
+@page "/Account/AccessDenied"
+<PageTitle>Access Denied - PeP v5.0</PageTitle>
+
+<div class="container-fluid vh-100">
+    <div class="row h-100 justify-content-center align-items-center">
+        <div class="col-12 col-md-6">
+            <RadzenCard class="text-center">
+                <RadzenStack Gap="1.5rem">
+                    <RadzenIcon Icon="block" Style="font-size: 4rem; color: var(--rz-danger);" />
+                    <RadzenText TextStyle="TextStyle.H4" TagName="TagName.H1">
+                        Access Denied
+                    </RadzenText>
+                    <RadzenText TextStyle="TextStyle.Body1" class="text-muted">
+                        You don't have permission to access this resource.
+                    </RadzenText>
+                    <RadzenButton Text="Go to Dashboard" 
+                                Icon="dashboard" 
+                                ButtonStyle="ButtonStyle.Primary"
+                                Size="ButtonSize.Large"
+                                Click="@(() => Navigation.NavigateTo("/"))" />
+                </RadzenStack>
+            </RadzenCard>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Inject] private NavigationManager Navigation { get; set; } = default!;
+}

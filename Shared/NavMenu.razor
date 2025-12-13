@@ -1,0 +1,117 @@
+﻿@using Microsoft.AspNetCore.Components.Authorization
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject UserManager<ApplicationUser> UserManager
+
+<div class="top-row ps-3 navbar navbar-dark">
+    <div class="container-fluid">
+        <a class="navbar-brand" href="">
+            <RadzenIcon Icon="school" Style="margin-right: 8px;" />
+            PeP v5.0
+        </a>
+        <button title="Navigation menu" class="navbar-toggler" @onclick="ToggleNavMenu">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+    </div>
+</div>
+
+<div class="@NavMenuCssClass nav-scrollable" @onclick="CollapseNavMenu">
+    <nav class="flex-column">
+        <div class="nav-item px-3">
+            <RadzenPanelMenu>
+                <!-- Dashboard - Always visible for authenticated users -->
+                <AuthorizeView>
+                    <Authorized>
+                        <RadzenPanelMenuItem Text="Dashboard" Icon="dashboard" Path="/" />
+                    </Authorized>
+                    <NotAuthorized>
+                        <RadzenPanelMenuItem Text="Home" Icon="home" Path="/" />
+                        <RadzenPanelMenuItem Text="Login" Icon="login" Path="/Account/Login" />
+                    </NotAuthorized>
+                </AuthorizeView>
+
+                <!-- Student Menu -->
+                <AuthorizeView Roles="@UserRoles.Student">
+                    <Authorized Context="studentContext">
+                        <RadzenPanelMenuItem Text="Exams" Icon="quiz" Expanded="false">
+                            <ChildContent>
+                                <RadzenPanelMenuItem Text="Take Exam" Icon="play_arrow" Path="/student/take-exam" />
+                                <RadzenPanelMenuItem Text="My Results" Icon="assessment" Path="/student/results" />
+                            </ChildContent>
+                        </RadzenPanelMenuItem>
+                    </Authorized>
+                </AuthorizeView>
+
+                <!-- Teacher Menu -->
+                <AuthorizeView Roles="@UserRoles.Teacher">
+                    <Authorized Context="teacherContext">
+                        <RadzenPanelMenuItem Text="Courses" Icon="library_books" Path="/teacher/courses" />
+                        <RadzenPanelMenuItem Text="Exams" Icon="quiz" Expanded="false">
+                            <ChildContent>
+                                <RadzenPanelMenuItem Text="Create Exam" Icon="add_circle" Path="/teacher/create-exam" />
+                                <RadzenPanelMenuItem Text="My Exams" Icon="list" Path="/teacher/exams" />
+                                <RadzenPanelMenuItem Text="Exam Codes" Icon="vpn_key" Path="/teacher/exam-codes" />
+                            </ChildContent>
+                        </RadzenPanelMenuItem>
+                        <RadzenPanelMenuItem Text="Students" Icon="people" Expanded="false">
+                            <ChildContent>
+                                <RadzenPanelMenuItem Text="Add Student" Icon="person_add" Path="/teacher/add-student" />
+                                <RadzenPanelMenuItem Text="Bulk Import" Icon="upload_file" Path="/teacher/import-students" />
+                                <RadzenPanelMenuItem Text="Manage Students" Icon="people" Path="/teacher/students" />
+                            </ChildContent>
+                        </RadzenPanelMenuItem>
+                        <RadzenPanelMenuItem Text="Reports" Icon="bar_chart" Path="/teacher/reports" />
+                    </Authorized>
+                </AuthorizeView>
+
+                <!-- Admin Menu -->
+                <AuthorizeView Roles="@UserRoles.Admin">
+                    <Authorized Context="adminContext">
+                        <RadzenPanelMenuItem Text="Administration" Icon="admin_panel_settings" Expanded="false">
+                            <ChildContent>
+                                <RadzenPanelMenuItem Text="Manage Teachers" Icon="supervisor_account" Path="/admin/teachers" />
+                                <RadzenPanelMenuItem Text="Platform Settings" Icon="settings" Path="/admin/settings" />
+                                <RadzenPanelMenuItem Text="System Reports" Icon="analytics" Path="/admin/reports" />
+                            </ChildContent>
+                        </RadzenPanelMenuItem>
+                    </Authorized>
+                </AuthorizeView>
+
+                <!-- Account - Always visible for authenticated users -->
+                <AuthorizeView>
+                    <Authorized Context="accountContext">
+                        <RadzenPanelMenuItem Text="Account" Icon="account_circle" Expanded="false">
+                            <ChildContent>
+                                <RadzenPanelMenuItem Text="Profile" Icon="person" Path="/Account/Manage" />
+                                <RadzenPanelMenuItem Text="Logout" Icon="logout" Path="/Account/Logout" />
+                            </ChildContent>
+                        </RadzenPanelMenuItem>
+                    </Authorized>
+                </AuthorizeView>
+            </RadzenPanelMenu>
+        </div>
+    </nav>
+</div>
+
+<!-- Footer with company information -->
+<div class="nav-footer">
+    <div class="text-center text-light small p-3">
+        <div><strong>Infinity Atom</strong></div>
+        <div>Copyright 2021 - 2025</div>
+    </div>
+</div>
+
+@code {
+    private bool collapseNavMenu = true;
+
+    private string? NavMenuCssClass => collapseNavMenu ? "collapse" : null;
+
+    private void ToggleNavMenu()
+    {
+        collapseNavMenu = !collapseNavMenu;
+    }
+
+    private void CollapseNavMenu()
+    {
+        collapseNavMenu = true;
+    }
+}

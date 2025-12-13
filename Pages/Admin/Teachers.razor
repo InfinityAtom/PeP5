@@ -1,0 +1,179 @@
+@page "/admin/teachers"
+@attribute [Authorize(Roles = UserRoles.Admin)]
+@inject IUserService UserService
+@inject DialogService DialogService
+@inject NotificationService NotificationService
+
+<PageTitle>Manage Teachers - PeP v5.0</PageTitle>
+
+<RadzenStack Gap="1rem">
+    <RadzenBreadCrumb>
+        <RadzenBreadCrumbItem Path="/" Text="Home" />
+        <RadzenBreadCrumbItem Text="Administration" />
+        <RadzenBreadCrumbItem Text="Manage Teachers" />
+    </RadzenBreadCrumb>
+
+    <RadzenRow JustifyContent="JustifyContent.SpaceBetween" AlignItems="AlignItems.Center">
+        <RadzenColumn Size="8">
+            <RadzenText TextStyle="TextStyle.H4" TagName="TagName.H1">
+                Manage Teachers
+            </RadzenText>
+            <RadzenText TextStyle="TextStyle.Body1" class="text-muted">
+                View and manage teacher accounts and permissions
+            </RadzenText>
+        </RadzenColumn>
+        <RadzenColumn Size="4" class="text-end">
+            <RadzenButton Text="Add Teacher" Icon="person_add" ButtonStyle="ButtonStyle.Primary" 
+                        Click="@ShowAddTeacherDialog" />
+        </RadzenColumn>
+    </RadzenRow>
+
+    @if (isLoading)
+    {
+        <RadzenCard>
+            <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="1rem">
+                <RadzenProgressBarCircular ShowValue="false" Size="ProgressBarCircularSize.Medium" />
+                <RadzenText>Loading teachers...</RadzenText>
+            </RadzenStack>
+        </RadzenCard>
+    }
+    else if (teachers?.Any() == true)
+    {
+        <RadzenDataGrid AllowFiltering="true" AllowColumnResize="true" AllowAlternatingRows="false" FilterMode="FilterMode.Advanced"
+                        AllowSorting="true" PageSize="15" AllowPaging="true" PagerHorizontalAlign="HorizontalAlign.Left" ShowPagingSummary="true"
+                        Data="@teachers" TItem="ApplicationUser" ColumnWidth="300px" LogicalFilterOperator="LogicalFilterOperator.Or">
+            <Columns>
+                <RadzenDataGridColumn TItem="ApplicationUser" Property="FirstName" Title="Name" Frozen="true" Width="180px">
+                    <Template Context="data">
+                        @($"{data.FirstName} {data.LastName}")
+                    </Template>
+                </RadzenDataGridColumn>
+                <RadzenDataGridColumn TItem="ApplicationUser" Property="Email" Title="Email" Width="200px" />
+                <RadzenDataGridColumn TItem="ApplicationUser" Property="Department" Title="Department" Width="150px" />
+                <RadzenDataGridColumn TItem="ApplicationUser" Property="CreatedAt" Title="Registered" Width="120px">
+                    <Template Context="data">
+                        @data.CreatedAt.ToString("MM/dd/yyyy")
+                    </Template>
+                </RadzenDataGridColumn>
+                <RadzenDataGridColumn TItem="ApplicationUser" Property="IsActive" Title="Status" Width="100px">
+                    <Template Context="data">
+                        <RadzenBadge BadgeStyle="@(data.IsActive ? BadgeStyle.Success : BadgeStyle.Danger)" 
+                                   Text="@(data.IsActive ? "Active" : "Inactive")" />
+                    </Template>
+                </RadzenDataGridColumn>
+                <RadzenDataGridColumn TItem="ApplicationUser" Context="data" Filterable="false" Sortable="false" TextAlign="TextAlign.Right" Width="120px" Title="Actions">
+                    <Template Context="data">
+                        <RadzenButton Icon="visibility" ButtonStyle="ButtonStyle.Light" Variant="Variant.Flat" Size="ButtonSize.Medium" 
+                                    Click="@(() => ViewTeacher(data))" @onclick:stopPropagation="true" />
+                        <RadzenButton Icon="edit" ButtonStyle="ButtonStyle.Light" Variant="Variant.Flat" Size="ButtonSize.Medium" 
+                                    Click="@(() => EditTeacher(data))" @onclick:stopPropagation="true" />
+                        <RadzenButton Icon="@(data.IsActive ? "block" : "check_circle")" 
+                                    ButtonStyle="@(data.IsActive ? ButtonStyle.Warning : ButtonStyle.Success)" 
+                                    Variant="Variant.Flat" Size="ButtonSize.Medium" 
+                                    Click="@(() => ToggleTeacherStatus(data))" @onclick:stopPropagation="true" />
+                    </Template>
+                </RadzenDataGridColumn>
+            </Columns>
+        </RadzenDataGrid>
+    }
+    else
+    {
+        <RadzenCard>
+            <RadzenStack Gap="1rem" class="text-center">
+                <RadzenIcon Icon="supervisor_account" Style="font-size: 4rem; color: var(--rz-secondary);" />
+                <RadzenText TextStyle="TextStyle.H6">No Teachers Yet</RadzenText>
+                <RadzenText TextStyle="TextStyle.Body2" class="text-muted">
+                    Add teachers to allow them to create and manage exams.
+                </RadzenText>
+                <RadzenButton Text="Add Teacher" Icon="person_add" ButtonStyle="ButtonStyle.Primary" 
+                            Click="@ShowAddTeacherDialog" />
+            </RadzenStack>
+        </RadzenCard>
+    }
+</RadzenStack>
+
+@code {
+    [Inject] private NavigationManager Navigation { get; set; } = default!;
+
+    private List<ApplicationUser>? teachers;
+    private bool isLoading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadTeachers();
+    }
+
+    private async Task LoadTeachers()
+    {
+        try
+        {
+            isLoading = true;
+            teachers = await UserService.GetTeachersAsync();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading teachers: {ex.Message}");
+            NotificationService.Notify(NotificationSeverity.Error, "Error", "Failed to load teachers");
+            teachers = new List<ApplicationUser>();
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task ShowAddTeacherDialog()
+    {
+        var result = await DialogService.OpenAsync<AddTeacherDialog>("Add Teacher", 
+            new Dictionary<string, object>(), 
+            new DialogOptions() { Width = "500px", Height = "600px" });
+
+        if (result != null)
+        {
+            await LoadTeachers();
+        }
+    }
+
+    private void ViewTeacher(ApplicationUser teacher)
+    {
+        Navigation.NavigateTo($"/admin/teacher/{teacher.Id}");
+    }
+
+    private async Task EditTeacher(ApplicationUser teacher)
+    {
+        var result = await DialogService.OpenAsync<EditTeacherDialog>("Edit Teacher", 
+            new Dictionary<string, object>() { { "Teacher", teacher } }, 
+            new DialogOptions() { Width = "500px", Height = "600px" });
+
+        if (result != null)
+        {
+            await LoadTeachers();
+        }
+    }
+
+    private async Task ToggleTeacherStatus(ApplicationUser teacher)
+    {
+        var fullName = $"{teacher.FirstName} {teacher.LastName}";
+        var action = teacher.IsActive ? "deactivate" : "activate";
+        var confirm = await DialogService.Confirm($"Are you sure you want to {action} {fullName}?", 
+            $"{char.ToUpper(action[0])}{action.Substring(1)} Teacher", 
+            new ConfirmOptions() { OkButtonText = char.ToUpper(action[0]) + action.Substring(1), CancelButtonText = "Cancel" });
+
+        if (confirm == true)
+        {
+            try
+            {
+                await UserService.ToggleUserStatusAsync(teacher.Id);
+                NotificationService.Notify(NotificationSeverity.Success, "Success", 
+                    $"Teacher {action}d successfully");
+                await LoadTeachers();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error toggling teacher status: {ex.Message}");
+                NotificationService.Notify(NotificationSeverity.Error, "Error", 
+                    $"Failed to {action} teacher");
+            }
+        }
+    }
+}

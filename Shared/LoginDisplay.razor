@@ -1,0 +1,135 @@
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Identity
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject UserManager<ApplicationUser> UserManager
+@inject NavigationManager Navigation
+
+<AuthorizeView>
+    <Authorized>
+        @if (currentUser != null)
+        {
+            <RadzenDropDown TValue="string"
+                          Data="@userMenuItems" 
+                          TextProperty="Text" 
+                          ValueProperty="Value"
+                          Placeholder="@GetUserDisplayName()"
+                          Style="min-width: 200px;"
+                          Change="@OnMenuItemSelected" />
+        }
+        else
+        {
+            <RadzenButton Text="Profile" 
+                        Icon="account_circle" 
+                        ButtonStyle="ButtonStyle.Light" 
+                        Size="ButtonSize.Medium" />
+        }
+    </Authorized>
+    <NotAuthorized>
+        <RadzenButton Text="Login" 
+                    Icon="login" 
+                    ButtonStyle="ButtonStyle.Primary" 
+                    Size="ButtonSize.Medium"
+                    Click="@NavigateToLogin" />
+    </NotAuthorized>
+</AuthorizeView>
+
+@code {
+    private ApplicationUser? currentUser;
+    private List<UserMenuItem> userMenuItems = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            if (authState?.User?.Identity?.IsAuthenticated == true)
+            {
+                var userId = UserManager.GetUserId(authState.User);
+                if (!string.IsNullOrEmpty(userId))
+                {
+                    currentUser = await UserManager.FindByIdAsync(userId);
+                }
+                
+                SetupUserMenu(authState.User);
+            }
+        }
+        catch (Exception ex)
+        {
+            // Log error but don't crash the component
+            Console.WriteLine($"Error in LoginDisplay: {ex.Message}");
+        }
+    }
+
+    private void SetupUserMenu(System.Security.Claims.ClaimsPrincipal user)
+    {
+        userMenuItems = new List<UserMenuItem>
+        {
+            new() { Text = "Profile", Value = "profile", Icon = "person" },
+            new() { Text = "Settings", Value = "settings", Icon = "settings" },
+            new() { Text = "Logout", Value = "logout", Icon = "logout" }
+        };
+
+        // Add role-specific menu items
+        if (user.IsInRole(UserRoles.Admin))
+        {
+            userMenuItems.Insert(2, new() { Text = "Admin Panel", Value = "admin", Icon = "admin_panel_settings" });
+        }
+        else if (user.IsInRole(UserRoles.Teacher))
+        {
+            userMenuItems.Insert(2, new() { Text = "My Exams", Value = "teacher", Icon = "quiz" });
+        }
+        else if (user.IsInRole(UserRoles.Student))
+        {
+            userMenuItems.Insert(2, new() { Text = "My Results", Value = "student", Icon = "assessment" });
+        }
+    }
+
+    private string GetUserDisplayName()
+    {
+        if (currentUser != null)
+        {
+            var displayName = $"{currentUser.FirstName} {currentUser.LastName}".Trim();
+            return !string.IsNullOrEmpty(displayName) ? displayName : currentUser.Email ?? "User";
+        }
+        return "User";
+    }
+
+    private void OnMenuItemSelected(object value)
+    {
+        var selectedValue = value?.ToString();
+        
+        switch (selectedValue)
+        {
+            case "profile":
+                Navigation.NavigateTo("/profile");
+                break;
+            case "settings":
+                Navigation.NavigateTo("/settings");
+                break;
+            case "admin":
+                Navigation.NavigateTo("/admin/settings");
+                break;
+            case "teacher":
+                Navigation.NavigateTo("/teacher/exams");
+                break;
+            case "student":
+                Navigation.NavigateTo("/student/results");
+                break;
+            case "logout":
+                Navigation.NavigateTo("/Account/Logout");
+                break;
+        }
+    }
+
+    private void NavigateToLogin()
+    {
+        Navigation.NavigateTo("/Account/Login");
+    }
+
+    public class UserMenuItem
+    {
+        public string Text { get; set; } = string.Empty;
+        public string Value { get; set; } = string.Empty;
+        public string Icon { get; set; } = string.Empty;
+    }
+}

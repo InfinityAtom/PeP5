@@ -1,0 +1,343 @@
+@page "/Account/Manage"
+@page "/profile"
+@page "/settings"
+@attribute [Authorize]
+@inject UserManager<ApplicationUser> UserManager
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject NotificationService NotificationService
+@inject NavigationManager Navigation
+@inject SignInManager<ApplicationUser> SignInManager
+
+<PageTitle>Account Settings - PeP v5.0</PageTitle>
+
+<RadzenStack Gap="1rem">
+    <RadzenBreadCrumb>
+        <RadzenBreadCrumbItem Path="/" Text="Home" />
+        <RadzenBreadCrumbItem Text="Account" />
+        <RadzenBreadCrumbItem Text="Profile & Settings" />
+    </RadzenBreadCrumb>
+
+    @if (isLoading)
+    {
+        <RadzenCard>
+            <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="1rem">
+                <RadzenProgressBarCircular ShowValue="false" Size="ProgressBarCircularSize.Medium" />
+                <RadzenText>Loading your profile...</RadzenText>
+            </RadzenStack>
+        </RadzenCard>
+    }
+    else if (!string.IsNullOrEmpty(loadError))
+    {
+        <RadzenAlert AlertStyle="AlertStyle.Danger" Icon="error" Closeable="false">
+            @loadError
+        </RadzenAlert>
+        <RadzenButton Text="Back to Dashboard" Icon="arrow_back" ButtonStyle="ButtonStyle.Primary" Click="@(() => Navigation.NavigateTo("/"))" />
+    }
+    else if (currentUser != null)
+    {
+        <RadzenRow Gutter="20px">
+            <RadzenColumn Size="12" SizeLG="8">
+                <RadzenCard>
+                    <RadzenStack Gap="1rem">
+                        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.75rem">
+                            <RadzenIcon Icon="account_circle" Style="font-size: 2.5rem; color: var(--rz-primary);" />
+                            <RadzenStack Gap="0.25rem">
+                                <RadzenText TextStyle="TextStyle.H4" TagName="TagName.H1" Style="margin:0;">Profile</RadzenText>
+                                <RadzenText TextStyle="TextStyle.Body2" class="text-muted">Update your personal information.</RadzenText>
+                            </RadzenStack>
+                        </RadzenStack>
+
+                        <RadzenTemplateForm TItem="ManageProfileModel" Data="@profileModel" Submit="@SaveProfile">
+                            <ChildContent>
+                                <RadzenStack Gap="1rem">
+                                    <RadzenRow Gutter="16px">
+                                        <RadzenColumn Size="12" SizeMD="6">
+                                            <RadzenFormField Text="First Name" Variant="Variant.Outlined">
+                                                <RadzenTextBox @bind-Value="@profileModel.FirstName" Name="FirstName" Style="width:100%;" />
+                                                <RadzenRequiredValidator Component="FirstName" Text="First name is required" />
+                                            </RadzenFormField>
+                                        </RadzenColumn>
+                                        <RadzenColumn Size="12" SizeMD="6">
+                                            <RadzenFormField Text="Last Name" Variant="Variant.Outlined">
+                                                <RadzenTextBox @bind-Value="@profileModel.LastName" Name="LastName" Style="width:100%;" />
+                                                <RadzenRequiredValidator Component="LastName" Text="Last name is required" />
+                                            </RadzenFormField>
+                                        </RadzenColumn>
+                                    </RadzenRow>
+
+                                    <RadzenRow Gutter="16px">
+                                        <RadzenColumn Size="12" SizeMD="6">
+                                            <RadzenFormField Text="Email" Variant="Variant.Outlined">
+                                                <RadzenTextBox Value="@profileModel.Email" Name="Email" Disabled="true" Style="width:100%;" />
+                                            </RadzenFormField>
+                                        </RadzenColumn>
+                                        <RadzenColumn Size="12" SizeMD="6">
+                                            <RadzenFormField Text="Phone Number" Variant="Variant.Outlined">
+                                                <RadzenTextBox @bind-Value="@profileModel.PhoneNumber" Name="Phone" Style="width:100%;" />
+                                            </RadzenFormField>
+                                        </RadzenColumn>
+                                    </RadzenRow>
+
+                                    <RadzenRow Gutter="16px">
+                                        <RadzenColumn Size="12" SizeMD="6">
+                                            <RadzenFormField Text="Student ID" Variant="Variant.Outlined">
+                                                <RadzenTextBox @bind-Value="@profileModel.StudentId" Name="StudentId" Style="width:100%;" Placeholder="Optional" />
+                                            </RadzenFormField>
+                                        </RadzenColumn>
+                                        <RadzenColumn Size="12" SizeMD="6">
+                                            <RadzenFormField Text="Department" Variant="Variant.Outlined">
+                                                <RadzenTextBox @bind-Value="@profileModel.Department" Name="Department" Style="width:100%;" Placeholder="Optional" />
+                                            </RadzenFormField>
+                                        </RadzenColumn>
+                                    </RadzenRow>
+
+                                    <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" AlignItems="AlignItems.Center">
+                                        @if (userRoles.Any())
+                                        {
+                                            @foreach (var role in userRoles)
+                                            {
+                                                <RadzenBadge Text="@role" BadgeStyle="BadgeStyle.Primary" />
+                                            }
+                                        }
+                                        <RadzenBadge Text="@($"Active since {currentUser.CreatedAt:MM/dd/yyyy}")" BadgeStyle="BadgeStyle.Light" />
+                                        <RadzenBadge Text="@($"Status: {(currentUser.IsActive ? "Active" : "Inactive")}")" BadgeStyle="@(currentUser.IsActive ? BadgeStyle.Success : BadgeStyle.Danger)" />
+                                    </RadzenStack>
+
+                                    @if (!string.IsNullOrEmpty(profileError))
+                                    {
+                                        <RadzenAlert AlertStyle="AlertStyle.Danger" Icon="error" Closeable="false">
+                                            @profileError
+                                        </RadzenAlert>
+                                    }
+
+                                    <RadzenButton ButtonType="ButtonType.Submit"
+                                                Text="Save Changes"
+                                                Icon="save"
+                                                ButtonStyle="ButtonStyle.Primary"
+                                                Size="ButtonSize.Large"
+                                                Disabled="@isSavingProfile"
+                                                IsBusy="@isSavingProfile"
+                                                Style="width:200px;" />
+                                </RadzenStack>
+                            </ChildContent>
+                        </RadzenTemplateForm>
+                    </RadzenStack>
+                </RadzenCard>
+            </RadzenColumn>
+
+            <RadzenColumn Size="12" SizeLG="4">
+                <RadzenCard>
+                    <RadzenStack Gap="1rem">
+                        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.75rem">
+                            <RadzenIcon Icon="lock" Style="font-size: 2rem; color: var(--rz-secondary);" />
+                            <RadzenStack Gap="0.25rem">
+                                <RadzenText TextStyle="TextStyle.H5" TagName="TagName.H2" Style="margin:0;">Change Password</RadzenText>
+                                <RadzenText TextStyle="TextStyle.Body2" class="text-muted">Keep your account secure.</RadzenText>
+                            </RadzenStack>
+                        </RadzenStack>
+
+                        <RadzenTemplateForm TItem="ChangePasswordModel" Data="@passwordModel" Submit="@ChangePassword">
+                            <ChildContent>
+                                <RadzenStack Gap="1rem">
+                                    <RadzenFormField Text="Current Password" Variant="Variant.Outlined">
+                                        <RadzenPassword @bind-Value="@passwordModel.CurrentPassword" Name="CurrentPassword" Style="width:100%;" />
+                                        <RadzenRequiredValidator Component="CurrentPassword" Text="Current password is required" />
+                                    </RadzenFormField>
+
+                                    <RadzenFormField Text="New Password" Variant="Variant.Outlined">
+                                        <RadzenPassword @bind-Value="@passwordModel.NewPassword" Name="NewPassword" Style="width:100%;" />
+                                        <RadzenRequiredValidator Component="NewPassword" Text="New password is required" />
+                                        <RadzenCompareValidator Component="ConfirmPassword" Value="@passwordModel.NewPassword" Text="Passwords must match" />
+                                    </RadzenFormField>
+
+                                    <RadzenFormField Text="Confirm New Password" Variant="Variant.Outlined">
+                                        <RadzenPassword @bind-Value="@passwordModel.ConfirmPassword" Name="ConfirmPassword" Style="width:100%;" />
+                                        <RadzenRequiredValidator Component="ConfirmPassword" Text="Please confirm the new password" />
+                                    </RadzenFormField>
+
+                                    @if (!string.IsNullOrEmpty(passwordError))
+                                    {
+                                        <RadzenAlert AlertStyle="AlertStyle.Danger" Icon="error" Closeable="false">
+                                            @passwordError
+                                        </RadzenAlert>
+                                    }
+
+                                    <RadzenButton ButtonType="ButtonType.Submit"
+                                                Text="Update Password"
+                                                Icon="password"
+                                                ButtonStyle="ButtonStyle.Secondary"
+                                                Size="ButtonSize.Medium"
+                                                Disabled="@isSavingPassword"
+                                                IsBusy="@isSavingPassword" />
+                                </RadzenStack>
+                            </ChildContent>
+                        </RadzenTemplateForm>
+                    </RadzenStack>
+                </RadzenCard>
+            </RadzenColumn>
+        </RadzenRow>
+    }
+</RadzenStack>
+
+@code {
+    private ManageProfileModel profileModel = new();
+    private ChangePasswordModel passwordModel = new();
+    private ApplicationUser? currentUser;
+    private List<string> userRoles = new();
+    private string? loadError;
+    private string? profileError;
+    private string? passwordError;
+    private bool isLoading = true;
+    private bool isSavingProfile;
+    private bool isSavingPassword;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadUserAsync();
+    }
+
+    private async Task LoadUserAsync()
+    {
+        isLoading = true;
+        loadError = null;
+
+        try
+        {
+            var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            if (authState?.User?.Identity?.IsAuthenticated == true)
+            {
+                var userId = UserManager.GetUserId(authState.User);
+                if (!string.IsNullOrEmpty(userId))
+                {
+                    currentUser = await UserManager.FindByIdAsync(userId);
+                    if (currentUser != null)
+                    {
+                        profileModel = new ManageProfileModel
+                        {
+                            FirstName = currentUser.FirstName,
+                            LastName = currentUser.LastName,
+                            Email = currentUser.Email ?? string.Empty,
+                            PhoneNumber = currentUser.PhoneNumber ?? string.Empty,
+                            StudentId = currentUser.StudentId,
+                            Department = currentUser.Department
+                        };
+
+                        userRoles = (await UserManager.GetRolesAsync(currentUser)).ToList();
+                    }
+                    else
+                    {
+                        loadError = "We could not find your user record.";
+                    }
+                }
+                else
+                {
+                    loadError = "Unable to determine the current user.";
+                }
+            }
+            else
+            {
+                loadError = "You need to be signed in to view this page.";
+            }
+        }
+        catch (Exception ex)
+        {
+            loadError = "An error occurred while loading your profile.";
+            Console.WriteLine($"Profile load error: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task SaveProfile()
+    {
+        if (currentUser == null) return;
+
+        isSavingProfile = true;
+        profileError = null;
+
+        try
+        {
+            currentUser.FirstName = profileModel.FirstName.Trim();
+            currentUser.LastName = profileModel.LastName.Trim();
+            currentUser.PhoneNumber = profileModel.PhoneNumber?.Trim();
+            currentUser.StudentId = string.IsNullOrWhiteSpace(profileModel.StudentId) ? null : profileModel.StudentId.Trim();
+            currentUser.Department = string.IsNullOrWhiteSpace(profileModel.Department) ? null : profileModel.Department.Trim();
+
+            var result = await UserManager.UpdateAsync(currentUser);
+            if (result.Succeeded)
+            {
+                NotificationService.Notify(NotificationSeverity.Success, "Saved", "Your profile was updated.");
+            }
+            else
+            {
+                profileError = string.Join("; ", result.Errors.Select(e => e.Description));
+            }
+        }
+        catch (Exception ex)
+        {
+            profileError = "Could not save your changes right now.";
+            Console.WriteLine($"Profile save error: {ex.Message}");
+        }
+        finally
+        {
+            isSavingProfile = false;
+        }
+    }
+
+    private async Task ChangePassword()
+    {
+        if (currentUser == null) return;
+
+        passwordError = null;
+        isSavingPassword = true;
+
+        try
+        {
+            if (passwordModel.NewPassword != passwordModel.ConfirmPassword)
+            {
+                passwordError = "New passwords do not match.";
+                return;
+            }
+
+            var result = await UserManager.ChangePasswordAsync(currentUser, passwordModel.CurrentPassword, passwordModel.NewPassword);
+            if (result.Succeeded)
+            {
+                NotificationService.Notify(NotificationSeverity.Success, "Password Updated", "Your password has been changed.");
+                await SignInManager.RefreshSignInAsync(currentUser);
+                passwordModel = new ChangePasswordModel();
+            }
+            else
+            {
+                passwordError = string.Join("; ", result.Errors.Select(e => e.Description));
+            }
+        }
+        catch (Exception ex)
+        {
+            passwordError = "Could not update your password right now.";
+            Console.WriteLine($"Password change error: {ex.Message}");
+        }
+        finally
+        {
+            isSavingPassword = false;
+        }
+    }
+
+    private class ManageProfileModel
+    {
+        public string FirstName { get; set; } = string.Empty;
+        public string LastName { get; set; } = string.Empty;
+        public string Email { get; set; } = string.Empty;
+        public string? PhoneNumber { get; set; }
+        public string? StudentId { get; set; }
+        public string? Department { get; set; }
+    }
+
+    private class ChangePasswordModel
+    {
+        public string CurrentPassword { get; set; } = string.Empty;
+        public string NewPassword { get; set; } = string.Empty;
+        public string ConfirmPassword { get; set; } = string.Empty;
+    }
+}

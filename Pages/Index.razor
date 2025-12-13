@@ -1,0 +1,632 @@
+﻿@page "/"
+@using Microsoft.AspNetCore.Components.Authorization
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject UserManager<ApplicationUser> UserManager
+@inject IExamService ExamService
+@inject IUserService UserService
+
+<PageTitle>Dashboard - PeP v5.0</PageTitle>
+
+@if (isLoading)
+{
+    <div class="d-flex justify-content-center align-items-center" style="height: 400px;">
+        <RadzenProgressBarCircular ShowValue="false" Size="ProgressBarCircularSize.Large" />
+        <RadzenText TextStyle="TextStyle.Body1" class="ms-3">Loading dashboard...</RadzenText>
+    </div>
+}
+else
+{
+    <AuthorizeView>
+        <Authorized Context="mainContext">
+            <RadzenStack Gap="1rem">
+                <!-- Welcome Header -->
+                <RadzenCard>
+                    <RadzenRow JustifyContent="JustifyContent.SpaceBetween" AlignItems="AlignItems.Center">
+                        <RadzenColumn Size="8">
+                            <RadzenText TextStyle="TextStyle.H4" TagName="TagName.H1">
+                                Welcome to PeP - Programming Examination Platform
+                            </RadzenText>
+                            <RadzenText TextStyle="TextStyle.Body1" class="text-muted">
+                                Hello @GetUserName()! Here's your dashboard overview.
+                            </RadzenText>
+                        </RadzenColumn>
+                        <RadzenColumn Size="4" class="text-end">
+                            <RadzenIcon Icon="school" Style="font-size: 3rem; color: var(--rz-primary);" />
+                        </RadzenColumn>
+                    </RadzenRow>
+                </RadzenCard>
+
+                <!-- Role-based Dashboard Content -->
+                <AuthorizeView Roles="@UserRoles.Student">
+                    <Authorized Context="studentContext">
+                        @if (studentStats != null)
+                        {
+                            <RadzenRow Gap="1rem">
+                                <RadzenColumn Size="12" SizeMD="6" SizeLG="3">
+                                    <RadzenCard Style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
+                                        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="1rem">
+                                            <RadzenIcon Icon="quiz" Style="font-size: 2.5rem;" />
+                                            <div>
+                                                <RadzenText TextStyle="TextStyle.H6" TagName="TagName.H3">
+                                                    Available Exams
+                                                </RadzenText>
+                                                <RadzenText TextStyle="TextStyle.H4">
+                                                    @studentStats.AvailableExams
+                                                </RadzenText>
+                                            </div>
+                                        </RadzenStack>
+                                    </RadzenCard>
+                                </RadzenColumn>
+                                <RadzenColumn Size="12" SizeMD="6" SizeLG="3">
+                                    <RadzenCard Style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); color: white;">
+                                        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="1rem">
+                                            <RadzenIcon Icon="assignment_turned_in" Style="font-size: 2.5rem;" />
+                                            <div>
+                                                <RadzenText TextStyle="TextStyle.H6" TagName="TagName.H3">
+                                                    Completed
+                                                </RadzenText>
+                                                <RadzenText TextStyle="TextStyle.H4">
+                                                    @studentStats.CompletedExams
+                                                </RadzenText>
+                                            </div>
+                                        </RadzenStack>
+                                    </RadzenCard>
+                                </RadzenColumn>
+                                <RadzenColumn Size="12" SizeMD="6" SizeLG="3">
+                                    <RadzenCard Style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); color: white;">
+                                        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="1rem">
+                                            <RadzenIcon Icon="trending_up" Style="font-size: 2.5rem;" />
+                                            <div>
+                                                <RadzenText TextStyle="TextStyle.H6" TagName="TagName.H3">
+                                                    Average Score
+                                                </RadzenText>
+                                                <RadzenText TextStyle="TextStyle.H4">
+                                                    @($"{studentStats.AverageScore:F1}%")
+                                                </RadzenText>
+                                            </div>
+                                        </RadzenStack>
+                                    </RadzenCard>
+                                </RadzenColumn>
+                                <RadzenColumn Size="12" SizeMD="6" SizeLG="3">
+                                    <RadzenCard Style="background: linear-gradient(135deg, #fa709a 0%, #fee140 100%); color: white;">
+                                        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="1rem">
+                                            <RadzenIcon Icon="schedule" Style="font-size: 2.5rem;" />
+                                            <div>
+                                                <RadzenText TextStyle="TextStyle.H6" TagName="TagName.H3">
+                                                    In Progress
+                                                </RadzenText>
+                                                <RadzenText TextStyle="TextStyle.H4">
+                                                    @studentStats.InProgressExams
+                                                </RadzenText>
+                                            </div>
+                                        </RadzenStack>
+                                    </RadzenCard>
+                                </RadzenColumn>
+                            </RadzenRow>
+
+                            <RadzenRow Gap="1rem">
+                                <RadzenColumn Size="12" SizeLG="8">
+                                    <RadzenCard>
+                                        <RadzenText TextStyle="TextStyle.H6" TagName="TagName.H2" Style="margin-bottom: 1rem;">
+                                            Quick Actions
+                                        </RadzenText>
+                                        <RadzenStack Orientation="Orientation.Horizontal" Gap="1rem" Wrap="FlexWrap.Wrap">
+                                            <RadzenButton Text="Take New Exam" 
+                                                        Icon="play_arrow" 
+                                                        ButtonStyle="ButtonStyle.Primary"
+                                                        Size="ButtonSize.Large"
+                                                        Click="@(() => Navigation.NavigateTo("/student/take-exam"))" />
+                                            <RadzenButton Text="View Results" 
+                                                        Icon="assessment" 
+                                                        ButtonStyle="ButtonStyle.Secondary"
+                                                        Size="ButtonSize.Large"
+                                                        Click="@(() => Navigation.NavigateTo("/student/results"))" />
+                                        </RadzenStack>
+                                    </RadzenCard>
+                                </RadzenColumn>
+                                <RadzenColumn Size="12" SizeLG="4">
+                                    <RadzenCard>
+                                        <RadzenText TextStyle="TextStyle.H6" TagName="TagName.H2" Style="margin-bottom: 1rem;">
+                                            Recent Activity
+                                        </RadzenText>
+                                        <RadzenText TextStyle="TextStyle.Body2" class="text-muted">
+                                            Your recent exam activities will appear here.
+                                        </RadzenText>
+                                    </RadzenCard>
+                                </RadzenColumn>
+                            </RadzenRow>
+                        }
+                        else
+                        {
+                            <RadzenAlert AlertStyle="AlertStyle.Info" Icon="info">
+                                <RadzenText>No exam data available at the moment.</RadzenText>
+                            </RadzenAlert>
+                        }
+                    </Authorized>
+                </AuthorizeView>
+
+                <AuthorizeView Roles="@UserRoles.Teacher">
+                    <Authorized Context="teacherContext">
+                        @if (teacherStats != null)
+                        {
+                            <RadzenRow Gap="1rem">
+                                <RadzenColumn Size="12" SizeMD="6" SizeLG="3">
+                                    <RadzenCard Style="background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%);">
+                                        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="1rem">
+                                            <RadzenIcon Icon="quiz" Style="font-size: 2.5rem; color: #666;" />
+                                            <div>
+                                                <RadzenText TextStyle="TextStyle.H6" TagName="TagName.H3">
+                                                    My Exams
+                                                </RadzenText>
+                                                <RadzenText TextStyle="TextStyle.H4">
+                                                    @teacherStats.TotalExams
+                                                </RadzenText>
+                                            </div>
+                                        </RadzenStack>
+                                    </RadzenCard>
+                                </RadzenColumn>
+                                <RadzenColumn Size="12" SizeMD="6" SizeLG="3">
+                                    <RadzenCard Style="background: linear-gradient(135deg, #d299c2 0%, #fef9d7 100%);">
+                                        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="1rem">
+                                            <RadzenIcon Icon="people" Style="font-size: 2.5rem; color: #666;" />
+                                            <div>
+                                                <RadzenText TextStyle="TextStyle.H6" TagName="TagName.H3">
+                                                    Students
+                                                </RadzenText>
+                                                <RadzenText TextStyle="TextStyle.H4">
+                                                    @teacherStats.TotalStudents
+                                                </RadzenText>
+                                            </div>
+                                        </RadzenStack>
+                                    </RadzenCard>
+                                </RadzenColumn>
+                                <RadzenColumn Size="12" SizeMD="6" SizeLG="3">
+                                    <RadzenCard Style="background: linear-gradient(135deg, #89f7fe 0%, #66a6ff 100%);">
+                                        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="1rem">
+                                            <RadzenIcon Icon="assignment_turned_in" Style="font-size: 2.5rem; color: white;" />
+                                            <div style="color: white;">
+                                                <RadzenText TextStyle="TextStyle.H6" TagName="TagName.H3">
+                                                    Submissions
+                                                </RadzenText>
+                                                <RadzenText TextStyle="TextStyle.H4">
+                                                    @teacherStats.TotalSubmissions
+                                                </RadzenText>
+                                            </div>
+                                        </RadzenStack>
+                                    </RadzenCard>
+                                </RadzenColumn>
+                                <RadzenColumn Size="12" SizeMD="6" SizeLG="3">
+                                    <RadzenCard Style="background: linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%);">
+                                        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="1rem">
+                                            <RadzenIcon Icon="vpn_key" Style="font-size: 2.5rem; color: #666;" />
+                                            <div>
+                                                <RadzenText TextStyle="TextStyle.H6" TagName="TagName.H3">
+                                                    Active Codes
+                                                </RadzenText>
+                                                <RadzenText TextStyle="TextStyle.H4">
+                                                    @teacherStats.ActiveCodes
+                                                </RadzenText>
+                                            </div>
+                                        </RadzenStack>
+                                    </RadzenCard>
+                                </RadzenColumn>
+                            </RadzenRow>
+
+                            <RadzenRow Gap="1rem">
+                                <RadzenColumn Size="12" SizeLG="8">
+                                    <RadzenCard>
+                                        <RadzenText TextStyle="TextStyle.H6" TagName="TagName.H2" Style="margin-bottom: 1rem;">
+                                            Quick Actions
+                                        </RadzenText>
+                                        <RadzenStack Orientation="Orientation.Horizontal" Gap="1rem" Wrap="FlexWrap.Wrap">
+                                            <RadzenButton Text="Create Exam" 
+                                                        Icon="add_circle" 
+                                                        ButtonStyle="ButtonStyle.Primary"
+                                                        Size="ButtonSize.Large"
+                                                        Click="@(() => Navigation.NavigateTo("/teacher/create-exam"))" />
+                                            <RadzenButton Text="Add Students" 
+                                                        Icon="person_add" 
+                                                        ButtonStyle="ButtonStyle.Secondary"
+                                                        Size="ButtonSize.Large"
+                                                        Click="@(() => Navigation.NavigateTo("/teacher/add-student"))" />
+                                            <RadzenButton Text="Generate Code" 
+                                                        Icon="vpn_key" 
+                                                        ButtonStyle="ButtonStyle.Info"
+                                                        Size="ButtonSize.Large"
+                                                        Click="@(() => Navigation.NavigateTo("/teacher/exam-codes"))" />
+                                            <RadzenButton Text="View Reports" 
+                                                        Icon="bar_chart" 
+                                                        ButtonStyle="ButtonStyle.Success"
+                                                        Size="ButtonSize.Large"
+                                                        Click="@(() => Navigation.NavigateTo("/teacher/reports"))" />
+                                        </RadzenStack>
+                                    </RadzenCard>
+                                </RadzenColumn>
+                                <RadzenColumn Size="12" SizeLG="4">
+                                    <RadzenCard>
+                                        <RadzenText TextStyle="TextStyle.H6" TagName="TagName.H2" Style="margin-bottom: 1rem;">
+                                            Recent Activity
+                                        </RadzenText>
+                                        <RadzenText TextStyle="TextStyle.Body2" class="text-muted">
+                                            Recent exam submissions and activities will appear here.
+                                        </RadzenText>
+                                    </RadzenCard>
+                                </RadzenColumn>
+                            </RadzenRow>
+                        }
+                        else
+                        {
+                            <RadzenAlert AlertStyle="AlertStyle.Info" Icon="info">
+                                <RadzenText>No teacher data available at the moment.</RadzenText>
+                            </RadzenAlert>
+                        }
+                    </Authorized>
+                </AuthorizeView>
+
+                <AuthorizeView Roles="@UserRoles.Admin">
+                    <Authorized Context="adminContext">
+                        @if (adminStats != null)
+                        {
+                            <RadzenRow Gap="1rem">
+                                <RadzenColumn Size="12" SizeMD="6" SizeLG="3">
+                                    <RadzenCard Style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
+                                        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="1rem">
+                                            <RadzenIcon Icon="supervisor_account" Style="font-size: 2.5rem;" />
+                                            <div>
+                                                <RadzenText TextStyle="TextStyle.H6" TagName="TagName.H3">
+                                                    Teachers
+                                                </RadzenText>
+                                                <RadzenText TextStyle="TextStyle.H4">
+                                                    @adminStats.TotalTeachers
+                                                </RadzenText>
+                                            </div>
+                                        </RadzenStack>
+                                    </RadzenCard>
+                                </RadzenColumn>
+                                <RadzenColumn Size="12" SizeMD="6" SizeLG="3">
+                                    <RadzenCard Style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); color: white;">
+                                        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="1rem">
+                                            <RadzenIcon Icon="people" Style="font-size: 2.5rem;" />
+                                            <div>
+                                                <RadzenText TextStyle="TextStyle.H6" TagName="TagName.H3">
+                                                    Students
+                                                </RadzenText>
+                                                <RadzenText TextStyle="TextStyle.H4">
+                                                    @adminStats.TotalStudents
+                                                </RadzenText>
+                                            </div>
+                                        </RadzenStack>
+                                    </RadzenCard>
+                                </RadzenColumn>
+                                <RadzenColumn Size="12" SizeMD="6" SizeLG="3">
+                                    <RadzenCard Style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); color: white;">
+                                        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="1rem">
+                                            <RadzenIcon Icon="quiz" Style="font-size: 2.5rem;" />
+                                            <div>
+                                                <RadzenText TextStyle="TextStyle.H6" TagName="TagName.H3">
+                                                    Total Exams
+                                                </RadzenText>
+                                                <RadzenText TextStyle="TextStyle.H4">
+                                                    @adminStats.TotalExams
+                                                </RadzenText>
+                                            </div>
+                                        </RadzenStack>
+                                    </RadzenCard>
+                                </RadzenColumn>
+                                <RadzenColumn Size="12" SizeMD="6" SizeLG="3">
+                                    <RadzenCard Style="background: linear-gradient(135deg, #fa709a 0%, #fee140 100%); color: white;">
+                                        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="1rem">
+                                            <RadzenIcon Icon="assessment" Style="font-size: 2.5rem;" />
+                                            <div>
+                                                <RadzenText TextStyle="TextStyle.H6" TagName="TagName.H3">
+                                                    Submissions
+                                                </RadzenText>
+                                                <RadzenText TextStyle="TextStyle.H4">
+                                                    @adminStats.TotalSubmissions
+                                                </RadzenText>
+                                            </div>
+                                        </RadzenStack>
+                                    </RadzenCard>
+                                </RadzenColumn>
+                            </RadzenRow>
+
+                            <RadzenRow Gap="1rem">
+                                <RadzenColumn Size="12" SizeLG="8">
+                                    <RadzenCard>
+                                        <RadzenText TextStyle="TextStyle.H6" TagName="TagName.H2" Style="margin-bottom: 1rem;">
+                                            Administrative Actions
+                                        </RadzenText>
+                                        <RadzenStack Orientation="Orientation.Horizontal" Gap="1rem" Wrap="FlexWrap.Wrap">
+                                            <RadzenButton Text="Manage Teachers" 
+                                                        Icon="supervisor_account" 
+                                                        ButtonStyle="ButtonStyle.Primary"
+                                                        Size="ButtonSize.Large"
+                                                        Click="@(() => Navigation.NavigateTo("/admin/teachers"))" />
+                                            <RadzenButton Text="Platform Settings" 
+                                                        Icon="settings" 
+                                                        ButtonStyle="ButtonStyle.Secondary"
+                                                        Size="ButtonSize.Large"
+                                                        Click="@(() => Navigation.NavigateTo("/admin/settings"))" />
+                                            <RadzenButton Text="System Reports" 
+                                                        Icon="analytics" 
+                                                        ButtonStyle="ButtonStyle.Info"
+                                                        Size="ButtonSize.Large"
+                                                        Click="@(() => Navigation.NavigateTo("/admin/reports"))" />
+                                        </RadzenStack>
+                                    </RadzenCard>
+                                </RadzenColumn>
+                                <RadzenColumn Size="12" SizeLG="4">
+                                    <RadzenCard>
+                                        <RadzenText TextStyle="TextStyle.H6" TagName="TagName.H2" Style="margin-bottom: 1rem;">
+                                            System Status
+                                        </RadzenText>
+                                        <RadzenText TextStyle="TextStyle.Body2" class="text-muted">
+                                            System health and activity monitoring.
+                                        </RadzenText>
+                                    </RadzenCard>
+                                </RadzenColumn>
+                            </RadzenRow>
+                        }
+                        else
+                        {
+                            <RadzenAlert AlertStyle="AlertStyle.Info" Icon="info">
+                                <RadzenText>No admin data available at the moment.</RadzenText>
+                            </RadzenAlert>
+                        }
+                    </Authorized>
+                </AuthorizeView>
+            </RadzenStack>
+        </Authorized>
+        <NotAuthorized>
+            <!-- Public Landing Page -->
+            <RadzenStack Gap="2rem" class="text-center">
+                <RadzenCard Style="background: white; color: #333; padding: 3rem; border: 1px solid #e0e0e0;">
+                    <RadzenStack Gap="1rem">
+                        <RadzenIcon Icon="school" Style="font-size: 4rem; color: var(--rz-primary);" />
+                        <RadzenText TextStyle="TextStyle.H3" TagName="TagName.H1" Style="color: #333;">
+                            Welcome to PeP v5.0
+                        </RadzenText>
+                        <RadzenText TextStyle="TextStyle.H5" Style="color: #666;">
+                            Programming Examination Platform
+                        </RadzenText>
+                        <RadzenText TextStyle="TextStyle.Body1" Style="color: #666;">
+                            A comprehensive platform for creating, managing, and taking programming examinations.
+                        </RadzenText>
+                        <RadzenButton Text="Get Started" 
+                                    Icon="arrow_forward" 
+                                    ButtonStyle="ButtonStyle.Primary"
+                                    Size="ButtonSize.Large"
+                                    Style="margin-top: 1rem;"
+                                    Click="@NavigateToLogin" />
+                    </RadzenStack>
+                </RadzenCard>
+
+                <RadzenRow Gap="2rem">
+                    <RadzenColumn Size="12" SizeMD="4">
+                        <RadzenCard class="h-100">
+                            <RadzenStack Gap="1rem" class="text-center">
+                                <RadzenIcon Icon="quiz" Style="font-size: 3rem; color: var(--rz-primary);" />
+                                <RadzenText TextStyle="TextStyle.H6" TagName="TagName.H3">
+                                    Interactive Exams
+                                </RadzenText>
+                                <RadzenText TextStyle="TextStyle.Body2">
+                                    Take comprehensive programming exams with multiple choice questions and instant feedback.
+                                </RadzenText>
+                            </RadzenStack>
+                        </RadzenCard>
+                    </RadzenColumn>
+                    <RadzenColumn Size="12" SizeMD="4">
+                        <RadzenCard class="h-100">
+                            <RadzenStack Gap="1rem" class="text-center">
+                                <RadzenIcon Icon="auto_awesome" Style="font-size: 3rem; color: var(--rz-success);" />
+                                <RadzenText TextStyle="TextStyle.H6" TagName="TagName.H3">
+                                    AI-Powered Questions
+                                </RadzenText>
+                                <RadzenText TextStyle="TextStyle.Body2">
+                                    Generate questions automatically using OpenAI integration for diverse and challenging content.
+                                </RadzenText>
+                            </RadzenStack>
+                        </RadzenCard>
+                    </RadzenColumn>
+                    <RadzenColumn Size="12" SizeMD="4">
+                        <RadzenCard class="h-100">
+                            <RadzenStack Gap="1rem" class="text-center">
+                                <RadzenIcon Icon="analytics" Style="font-size: 3rem; color: var(--rz-info);" />
+                                <RadzenText TextStyle="TextStyle.H6" TagName="TagName.H3">
+                                    Detailed Analytics
+                                </RadzenText>
+                                <RadzenText TextStyle="TextStyle.Body2">
+                                    Comprehensive reporting and analytics for tracking student progress and performance.
+                                </RadzenText>
+                            </RadzenStack>
+                        </RadzenCard>
+                    </RadzenColumn>
+                </RadzenRow>
+
+                <RadzenCard>
+                    <RadzenText TextStyle="TextStyle.Body2" class="text-muted text-center">
+                        <strong>Infinity Atom</strong> • Copyright 2021 - 2025 • Version 5.0
+                    </RadzenText>
+                </RadzenCard>
+            </RadzenStack>
+        </NotAuthorized>
+    </AuthorizeView>
+}
+
+@code {
+    [Inject] private NavigationManager Navigation { get; set; } = default!;
+
+    private StudentDashboardStats? studentStats;
+    private TeacherDashboardStats? teacherStats;
+    private AdminDashboardStats? adminStats;
+    private bool isLoading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            if (authState?.User?.Identity?.IsAuthenticated == true)
+            {
+                if (authState.User.IsInRole(UserRoles.Student))
+                {
+                    await LoadStudentStats(authState.User);
+                }
+                else if (authState.User.IsInRole(UserRoles.Teacher))
+                {
+                    await LoadTeacherStats(authState.User);
+                }
+                else if (authState.User.IsInRole(UserRoles.Admin))
+                {
+                    await LoadAdminStats();
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error initializing dashboard: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private string GetUserName()
+    {
+        try
+        {
+            var authState = AuthenticationStateProvider.GetAuthenticationStateAsync().Result;
+            if (authState?.User?.Identity?.IsAuthenticated == true)
+            {
+                var firstName = authState.User.FindFirst("FirstName")?.Value;
+                var lastName = authState.User.FindFirst("LastName")?.Value;
+                
+                if (!string.IsNullOrEmpty(firstName) && !string.IsNullOrEmpty(lastName))
+                {
+                    return $"{firstName} {lastName}";
+                }
+                
+                return authState.User.Identity.Name ?? "User";
+            }
+        }
+        catch
+        {
+            // Ignore exceptions during prerendering
+        }
+        return "Guest";
+    }
+
+    private void NavigateToLogin()
+    {
+        Navigation.NavigateTo("/Account/Login");
+    }
+
+    private async Task LoadStudentStats(System.Security.Claims.ClaimsPrincipal user)
+    {
+        try
+        {
+            var userId = UserManager.GetUserId(user);
+            if (!string.IsNullOrEmpty(userId))
+            {
+                // Get actual data from services
+                var availableExams = await ExamService.GetAvailableExamsForStudentAsync(userId);
+                var completedAttempts = await ExamService.GetCompletedExamAttemptsAsync(userId);
+                var inProgressAttempts = await ExamService.GetInProgressExamAttemptsAsync(userId);
+                
+                var averageScore = completedAttempts.Any() 
+                    ? completedAttempts.Average(a => a.TotalScore) 
+                    : 0;
+
+                studentStats = new StudentDashboardStats
+                {
+                    AvailableExams = availableExams.Count,
+                    CompletedExams = completedAttempts.Count,
+                    InProgressExams = inProgressAttempts.Count,
+                    AverageScore = averageScore
+                };
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading student stats: {ex.Message}");
+            studentStats = null;
+        }
+    }
+
+    private async Task LoadTeacherStats(System.Security.Claims.ClaimsPrincipal user)
+    {
+        try
+        {
+            var userId = UserManager.GetUserId(user);
+            if (userId != null)
+            {
+                var exams = await ExamService.GetExamsForTeacherAsync(userId);
+                var students = await UserService.GetStudentsAsync();
+                var submissions = await ExamService.GetAllExamAttemptsForTeacherAsync(userId);
+                var activeCodes = await ExamService.GetActiveExamCodesForTeacherAsync(userId);
+                
+                teacherStats = new TeacherDashboardStats
+                {
+                    TotalExams = exams.Count,
+                    TotalStudents = students.Count,
+                    TotalSubmissions = submissions.Count,
+                    ActiveCodes = activeCodes.Count
+                };
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading teacher stats: {ex.Message}");
+            teacherStats = null;
+        }
+    }
+
+    private async Task LoadAdminStats()
+    {
+        try
+        {
+            var teachers = await UserService.GetTeachersAsync();
+            var students = await UserService.GetStudentsAsync();
+            var allExams = await ExamService.GetAllExamsAsync();
+            var allSubmissions = await ExamService.GetAllExamAttemptsAsync();
+            
+            adminStats = new AdminDashboardStats
+            {
+                TotalTeachers = teachers.Count,
+                TotalStudents = students.Count,
+                TotalExams = allExams.Count,
+                TotalSubmissions = allSubmissions.Count
+            };
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading admin stats: {ex.Message}");
+            adminStats = null;
+        }
+    }
+
+    public class StudentDashboardStats
+    {
+        public int AvailableExams { get; set; }
+        public int CompletedExams { get; set; }
+        public int InProgressExams { get; set; }
+        public decimal AverageScore { get; set; }
+    }
+
+    public class TeacherDashboardStats
+    {
+        public int TotalExams { get; set; }
+        public int TotalStudents { get; set; }
+        public int TotalSubmissions { get; set; }
+        public int ActiveCodes { get; set; }
+    }
+
+    public class AdminDashboardStats
+    {
+        public int TotalTeachers { get; set; }
+        public int TotalStudents { get; set; }
+        public int TotalExams { get; set; }
+        public int TotalSubmissions { get; set; }
+    }
+}

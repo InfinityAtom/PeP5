@@ -1,0 +1,187 @@
+@page "/teacher/add-student"
+@attribute [Authorize(Roles = UserRoles.Teacher)]
+@inject IUserService UserService
+@inject NotificationService NotificationService
+@inject NavigationManager Navigation
+
+<PageTitle>Add Student - PeP v5.0</PageTitle>
+
+<RadzenStack Gap="0.75rem" Style="max-width:1200px;margin:0 auto;">
+    <RadzenBreadCrumb>
+        <RadzenBreadCrumbItem Path="/" Text="Home" />
+        <RadzenBreadCrumbItem Path="/teacher/students" Text="Students" />
+        <RadzenBreadCrumbItem Text="Add" />
+    </RadzenBreadCrumb>
+
+    <RadzenCard Style="padding:.75rem .75rem 1rem .75rem;">
+        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" JustifyContent="JustifyContent.SpaceBetween" Style="margin-bottom:.5rem;">
+            <RadzenStack Gap="0">
+                <RadzenText TextStyle="TextStyle.H5" TagName="TagName.H1" Style="margin:0;">Add New Student</RadzenText>
+                <RadzenText TextStyle="TextStyle.Caption" class="text-muted">Fill required fields. Use the helper panel for guidelines.</RadzenText>
+            </RadzenStack>
+            <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem">
+                <RadzenButton Text="CSV Import" Icon="upload_file" ButtonStyle="ButtonStyle.Secondary" Size="ButtonSize.Small" Click="@(() => Navigation.NavigateTo("/teacher/import-students"))" />
+                <RadzenButton Text="Back" Icon="arrow_back" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small" Click="@(() => Navigation.NavigateTo("/teacher/students"))" />
+            </RadzenStack>
+        </RadzenStack>
+
+        <RadzenRow Style="row-gap:1rem;">
+            <RadzenColumn Size="12" SizeLG="7">
+                <RadzenTemplateForm Data="@studentModel" TItem="RegisterViewModel" Submit="@CreateStudent">
+                    <RadzenStack Gap="0.75rem">
+                        <RadzenValidationSummary />
+
+                        <RadzenRow Style="row-gap:.75rem;">
+                            <RadzenColumn Size="12" SizeMD="6">
+                                <RadzenFormField Text="First Name" Variant="Variant.Outlined" Style="margin:0;">
+                                    <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.25rem">
+                                        <RadzenIcon Icon="badge" Style="color:var(--rz-primary);" />
+                                        <RadzenTextBox @bind-Value="studentModel.FirstName" Name="FirstName" MaxLength="50" Placeholder="John" Style="flex:1" />
+                                    </RadzenStack>
+                                    <RadzenRequiredValidator Component="FirstName" Text="Required" />
+                                </RadzenFormField>
+                            </RadzenColumn>
+                            <RadzenColumn Size="12" SizeMD="6">
+                                <RadzenFormField Text="Last Name" Variant="Variant.Outlined" Style="margin:0;">
+                                    <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.25rem">
+                                        <RadzenIcon Icon="badge" Style="color:var(--rz-primary);" />
+                                        <RadzenTextBox @bind-Value="studentModel.LastName" Name="LastName" MaxLength="50" Placeholder="Doe" Style="flex:1" />
+                                    </RadzenStack>
+                                    <RadzenRequiredValidator Component="LastName" Text="Required" />
+                                </RadzenFormField>
+                            </RadzenColumn>
+                            <RadzenColumn Size="12" SizeMD="6">
+                                <RadzenFormField Text="Email" Variant="Variant.Outlined" Style="margin:0;">
+                                    <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.25rem">
+                                        <RadzenIcon Icon="mail" Style="color:var(--rz-primary);" />
+                                        <RadzenTextBox @bind-Value="studentModel.Email" Name="Email" MaxLength="255" Placeholder="student@example.com" Style="flex:1" />
+                                    </RadzenStack>
+                                    <RadzenRequiredValidator Component="Email" Text="Required" />
+                                    <RadzenEmailValidator Component="Email" Text="Invalid email" />
+                                </RadzenFormField>
+                            </RadzenColumn>
+                            <RadzenColumn Size="12" SizeMD="6">
+                                <RadzenFormField Text="Student ID" Variant="Variant.Outlined" Style="margin:0;">
+                                    <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.25rem">
+                                        <RadzenIcon Icon="confirmation_number" Style="color:var(--rz-secondary);" />
+                                        <RadzenTextBox @bind-Value="studentModel.StudentId" Name="StudentId" MaxLength="50" Placeholder="Optional" Style="flex:1" />
+                                    </RadzenStack>
+                                </RadzenFormField>
+                            </RadzenColumn>
+                            <RadzenColumn Size="12" SizeMD="6">
+                                <RadzenFormField Text="Password" Variant="Variant.Outlined" Style="margin:0;">
+                                    <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.25rem">
+                                        <RadzenIcon Icon="lock" Style="color:var(--rz-danger);" />
+                                        <RadzenPassword @bind-Value="studentModel.Password" Name="Password" Placeholder="Enter password" Style="flex:1" />
+                                        <RadzenButton Icon="autorenew" ButtonStyle="ButtonStyle.Secondary" Size="ButtonSize.Small" Title="Generate" Click="@GeneratePassword" @onclick:stopPropagation="true" />
+                                    </RadzenStack>
+                                    <RadzenRequiredValidator Component="Password" Text="Required" />
+                                    <RadzenLengthValidator Component="Password" Min="6" Text="Min 6 chars" />
+                                </RadzenFormField>
+                            </RadzenColumn>
+                            <RadzenColumn Size="12" SizeMD="6">
+                                <RadzenFormField Text="Confirm Password" Variant="Variant.Outlined" Style="margin:0;">
+                                    <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.25rem">
+                                        <RadzenIcon Icon="lock" Style="color:var(--rz-danger);" />
+                                        <RadzenPassword @bind-Value="studentModel.ConfirmPassword" Name="ConfirmPassword" Placeholder="Repeat" Style="flex:1" />
+                                    </RadzenStack>
+                                    <RadzenRequiredValidator Component="ConfirmPassword" Text="Required" />
+                                    <RadzenCompareValidator Component="ConfirmPassword" Value="@studentModel.Password" Text="Mismatch" />
+                                </RadzenFormField>
+                            </RadzenColumn>
+                        </RadzenRow>
+
+                        <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" AlignItems="AlignItems.Center">
+                            <RadzenCheckBox @bind-Value="sendWelcomeEmail" Name="Welcome" />
+                            <RadzenLabel Component="Welcome" Text="Send welcome email with credentials" />
+                            @if (sendWelcomeEmail)
+                            {
+                                <RadzenBadge Text="Email" BadgeStyle="BadgeStyle.Info" />
+                            }
+                        </RadzenStack>
+
+                        <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" JustifyContent="JustifyContent.End" Style="margin-top:.5rem;">
+                            <RadzenButton Text="Cancel" Icon="close" ButtonStyle="ButtonStyle.Light" Click="@(() => Navigation.NavigateTo("/teacher/students"))" Disabled="@isCreating" />
+                            <RadzenButton Text="Create" Icon="person_add" ButtonStyle="ButtonStyle.Primary" ButtonType="ButtonType.Submit" IsBusy="@isCreating" Disabled="@isCreating" />
+                        </RadzenStack>
+                    </RadzenStack>
+                </RadzenTemplateForm>
+            </RadzenColumn>
+
+            <RadzenColumn Size="12" SizeLG="5">
+                <RadzenStack Gap="0.75rem" Style="background:var(--rz-base-200);padding:.75rem;border-radius:4px;">
+                    <RadzenText TextStyle="TextStyle.H6" Style="margin:0;">Guidelines & Tips</RadzenText>
+                    <RadzenText TextStyle="TextStyle.Caption" class="text-muted">Use strong passwords. Student IDs help with external mapping (optional).</RadzenText>
+                    <RadzenListView Data="@tips" Style="font-size:.75rem;" TItem="string">
+                        <Template Context="tip">
+                            <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" AlignItems="AlignItems.Center">
+                                <RadzenIcon Icon="check_circle" Style="color:var(--rz-success);" />
+                                
+                            </RadzenStack>
+                        </Template>
+                    </RadzenListView>
+                    <RadzenDivider />
+                    <RadzenStack Gap="0.5rem">
+                        <RadzenText TextStyle="TextStyle.Caption" class="text-muted">Need to add many students?</RadzenText>
+                        <RadzenButton Text="Open CSV Import" Icon="upload" ButtonStyle="ButtonStyle.Secondary" Size="ButtonSize.Small" Click="@(() => Navigation.NavigateTo("/teacher/import-students"))" />
+                    </RadzenStack>
+                </RadzenStack>
+            </RadzenColumn>
+        </RadzenRow>
+    </RadzenCard>
+</RadzenStack>
+
+@code {
+    private RegisterViewModel studentModel = new() { Role = UserRoles.Student };
+    private bool isCreating;
+    private bool sendWelcomeEmail = true;
+    private List<string> tips = new()
+    {
+        "Email must be unique.",
+        "Use at least 6 characters for password.",
+        "Include digits & mixed case for stronger passwords.",
+        "Student ID can be used for external systems.",
+        "Welcome email includes initial password if enabled." 
+    };
+
+    private async Task CreateStudent()
+    {
+        if (isCreating) return;
+        isCreating = true;
+        try
+        {
+            var user = await UserService.CreateStudentAsync(studentModel);
+            if (user != null)
+            {
+                if (sendWelcomeEmail)
+                {
+                    await UserService.SendWelcomeEmailAsync(user, studentModel.Password);
+                }
+                NotificationService.Notify(NotificationSeverity.Success, "Created", "Student account created.");
+                studentModel = new RegisterViewModel { Role = UserRoles.Student };
+                sendWelcomeEmail = true;
+            }
+            else
+            {
+                NotificationService.Notify(NotificationSeverity.Error, "Failed", "Could not create student.");
+            }
+        }
+        catch (Exception ex)
+        {
+            NotificationService.Notify(NotificationSeverity.Error, "Error", ex.Message);
+        }
+        finally
+        {
+            isCreating = false;
+        }
+    }
+
+    private void GeneratePassword()
+    {
+        var rnd = new Random();
+        const string chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$";
+        studentModel.Password = new string(Enumerable.Range(0, 10).Select(_ => chars[rnd.Next(chars.Length)]).ToArray());
+        studentModel.ConfirmPassword = studentModel.Password;
+        NotificationService.Notify(NotificationSeverity.Info, "Password", "Random password generated.");
+    }
+}

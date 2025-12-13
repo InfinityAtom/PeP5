@@ -1,0 +1,121 @@
+@using Microsoft.AspNetCore.Components.Authorization
+@inject IExamService ExamService
+@inject UserManager<ApplicationUser> UserManager
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject NotificationService NotificationService
+
+<RadzenTemplateForm TItem="ExamCodeViewModel" Data="@model" Submit="@OnSubmit">
+    <RadzenStack Gap="1rem">
+        <RadzenFormField Text="Select Exam" Variant="Variant.Outlined">
+            <RadzenDropDown @bind-Value="@model.ExamId" Data="@availableExams" TextProperty="Title" ValueProperty="Id" 
+                          Placeholder="Choose an exam..." Style="width: 100%;" Name="ExamId" />
+            <RadzenRequiredValidator Component="ExamId" Text="Please select an exam" />
+        </RadzenFormField>
+
+        <RadzenFormField Text="Description" Variant="Variant.Outlined">
+            <RadzenTextBox @bind-Value="@model.Description" MaxLength="500" Placeholder="Optional description" Name="Description" />
+        </RadzenFormField>
+
+        <RadzenFormField Text="Expires At" Variant="Variant.Outlined">
+            <RadzenDatePicker @bind-Value="@model.ExpiresAt" DateFormat="MM/dd/yyyy HH:mm" ShowTime="true" Name="ExpiresAt" />
+            <RadzenRequiredValidator Component="ExpiresAt" Text="Expiration date is required" />
+        </RadzenFormField>
+
+        <RadzenFormField Text="Maximum Uses" Variant="Variant.Outlined">
+            <RadzenNumeric @bind-Value="@model.MaxUses" Min="1" Max="1000" Placeholder="Leave empty for unlimited" Name="MaxUses" />
+            <RadzenText TextStyle="TextStyle.Caption" class="text-muted">
+                Leave empty for unlimited uses
+            </RadzenText>
+        </RadzenFormField>
+
+        <RadzenFormField Text="Active" Variant="Variant.Outlined">
+            <RadzenSwitch @bind-Value="@model.IsActive" Name="IsActive" />
+            <RadzenText TextStyle="TextStyle.Caption" class="ms-2">
+                @(model.IsActive ? "Code is active" : "Code is inactive")
+            </RadzenText>
+        </RadzenFormField>
+
+        <RadzenStack Orientation="Orientation.Horizontal" Gap="1rem" JustifyContent="JustifyContent.End">
+            <RadzenButton Text="Cancel" ButtonStyle="ButtonStyle.Light" Click="@(() => dialogService.Close(false))" />
+            <RadzenButton Text="Generate Code" ButtonStyle="ButtonStyle.Primary" ButtonType="ButtonType.Submit" IsBusy="@isSubmitting" />
+        </RadzenStack>
+    </RadzenStack>
+</RadzenTemplateForm>
+
+@code {
+    [Inject] public DialogService dialogService { get; set; } = default!;
+
+    private ExamCodeViewModel model = new() { IsActive = true, ExpiresAt = DateTime.Now.AddDays(7) };
+    private List<Exam> availableExams = new();
+    private bool isSubmitting;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAvailableExams();
+    }
+
+    private async Task LoadAvailableExams()
+    {
+        try
+        {
+            var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            if (authState?.User?.Identity?.IsAuthenticated == true)
+            {
+                var userId = UserManager.GetUserId(authState.User);
+                if (!string.IsNullOrEmpty(userId))
+                {
+                    availableExams = await ExamService.GetExamsForTeacherAsync(userId);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading exams: {ex.Message}");
+        }
+    }
+
+    private async Task OnSubmit()
+    {
+        try
+        {
+            isSubmitting = true;
+
+            var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            if (authState?.User?.Identity?.IsAuthenticated == true)
+            {
+                var userId = UserManager.GetUserId(authState.User);
+                if (!string.IsNullOrEmpty(userId))
+                {
+                    var code = await ExamService.GenerateExamCodeAsync(
+                        model.ExamId, 
+                        model.ExpiresAt, 
+                        model.MaxUses, 
+                        userId, 
+                        model.Description);
+
+                    NotificationService.Notify(NotificationSeverity.Success, "Success", 
+                        $"Exam code '{code}' generated successfully");
+                    dialogService.Close(true);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error generating exam code: {ex.Message}");
+            NotificationService.Notify(NotificationSeverity.Error, "Error", "An error occurred while generating the exam code");
+        }
+        finally
+        {
+            isSubmitting = false;
+        }
+    }
+
+    public class ExamCodeViewModel
+    {
+        public int ExamId { get; set; }
+        public string Description { get; set; } = string.Empty;
+        public DateTime ExpiresAt { get; set; }
+        public int? MaxUses { get; set; }
+        public bool IsActive { get; set; } = true;
+    }
+}

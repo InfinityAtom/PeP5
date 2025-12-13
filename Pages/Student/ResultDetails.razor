@@ -1,0 +1,243 @@
+@page "/student/results/{AttemptId:int}"
+@attribute [Authorize(Roles = UserRoles.Student)]
+@inject IExamService ExamService
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject UserManager<ApplicationUser> UserManager
+@inject NavigationManager Navigation
+
+<PageTitle>Exam Result - PeP v5.0</PageTitle>
+
+<RadzenStack Gap="1rem">
+    <RadzenBreadCrumb>
+        <RadzenBreadCrumbItem Path="/" Text="Home" />
+        <RadzenBreadCrumbItem Path="/student/results" Text="My Results" />
+        <RadzenBreadCrumbItem Text="Result Details" />
+    </RadzenBreadCrumb>
+
+    @if (isLoading)
+    {
+        <RadzenCard>
+            <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="1rem">
+                <RadzenProgressBarCircular ShowValue="false" Size="ProgressBarCircularSize.Medium" />
+                <RadzenText>Loading result...</RadzenText>
+            </RadzenStack>
+        </RadzenCard>
+    }
+    else if (examAttempt == null)
+    {
+        <RadzenAlert AlertStyle="AlertStyle.Warning" Icon="warning">
+            We could not find this exam attempt or you do not have access to it.
+        </RadzenAlert>
+        <RadzenButton Text="Back to My Results" Icon="arrow_back" ButtonStyle="ButtonStyle.Primary" Click="@(() => Navigation.NavigateTo("/student/results"))" />
+    }
+    else
+    {
+        <RadzenStack Gap="1rem">
+            <RadzenCard>
+                <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween" AlignItems="AlignItems.Center">
+                    <RadzenStack Gap="0.25rem">
+                        <RadzenText TextStyle="TextStyle.H4" TagName="TagName.H1" Style="margin:0;">
+                            @examAttempt.Exam.Title
+                        </RadzenText>
+                        <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" AlignItems="AlignItems.Center">
+                            <RadzenBadge Text="@examAttempt.Exam.Course?.Name" BadgeStyle="BadgeStyle.Info" />
+                            <RadzenBadge Text="@examAttempt.Status.ToString()" BadgeStyle="GetStatusBadge(examAttempt.Status)" />
+                            <RadzenBadge Text="@examAttempt.StartedAt.ToLocalTime().ToString("MM/dd/yyyy HH:mm")" BadgeStyle="BadgeStyle.Light" />
+                        </RadzenStack>
+                    </RadzenStack>
+                    <RadzenStack Gap="0.35rem" AlignItems="AlignItems.End">
+                        <RadzenText TextStyle="TextStyle.Body2" class="text-muted">Score</RadzenText>
+                        <RadzenText TextStyle="TextStyle.H4">
+                            @($"{examAttempt.TotalScore:F1} / {maxScore:F1} ({scorePercent:F1}%)")
+                        </RadzenText>
+                    </RadzenStack>
+                </RadzenStack>
+            </RadzenCard>
+
+            <RadzenRow Gutter="16px">
+                <RadzenColumn Size="12" SizeMD="3">
+                    <RadzenCard>
+                        <RadzenStack Gap="0.25rem" class="text-center">
+                            <RadzenText TextStyle="TextStyle.Caption" class="text-muted">Duration</RadzenText>
+                            <RadzenText TextStyle="TextStyle.H5">@duration.ToString(@"hh\:mm\:ss")</RadzenText>
+                        </RadzenStack>
+                    </RadzenCard>
+                </RadzenColumn>
+                <RadzenColumn Size="12" SizeMD="3">
+                    <RadzenCard>
+                        <RadzenStack Gap="0.25rem" class="text-center">
+                            <RadzenText TextStyle="TextStyle.Caption" class="text-muted">Questions</RadzenText>
+                            <RadzenText TextStyle="TextStyle.H5">@examAttempt.StudentAnswers.Count</RadzenText>
+                        </RadzenStack>
+                    </RadzenCard>
+                </RadzenColumn>
+                <RadzenColumn Size="12" SizeMD="3">
+                    <RadzenCard>
+                        <RadzenStack Gap="0.25rem" class="text-center">
+                            <RadzenText TextStyle="TextStyle.Caption" class="text-muted">Exam Code</RadzenText>
+                            <RadzenText TextStyle="TextStyle.H5">@(!string.IsNullOrEmpty(examAttempt.ExamCodeUsed) ? examAttempt.ExamCodeUsed : "N/A")</RadzenText>
+                        </RadzenStack>
+                    </RadzenCard>
+                </RadzenColumn>
+                <RadzenColumn Size="12" SizeMD="3">
+                    <RadzenCard>
+                        <RadzenStack Gap="0.25rem" class="text-center">
+                            <RadzenText TextStyle="TextStyle.Caption" class="text-muted">Submitted</RadzenText>
+                            <RadzenText TextStyle="TextStyle.H5">@examAttempt.SubmittedAt?.ToLocalTime().ToString("MM/dd/yyyy HH:mm")</RadzenText>
+                        </RadzenStack>
+                    </RadzenCard>
+                </RadzenColumn>
+            </RadzenRow>
+
+            <RadzenCard>
+                <RadzenStack Gap="1rem">
+                    <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
+                        <RadzenIcon Icon="quiz" Style="color:var(--rz-primary);" />
+                        <RadzenText TextStyle="TextStyle.H5" TagName="TagName.H2" Style="margin:0;">Answers</RadzenText>
+                    </RadzenStack>
+
+                    @foreach (var answer in examAttempt.StudentAnswers.OrderBy(sa => sa.Question.Order))
+                    {
+                        var question = answer.Question;
+                        var selectedChoices = GetSelectedChoiceIds(answer);
+                        var correctChoices = question.Choices.Where(c => c.IsCorrect).Select(c => c.Id).ToList();
+
+                        <RadzenCard Style="border:1px solid #e0e0e0;">
+                            <RadzenStack Gap="0.5rem">
+                                <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween" AlignItems="AlignItems.Center">
+                                    <RadzenText TextStyle="TextStyle.Body1" Style="font-weight:600;">
+                                        @($"Q{question.Order + 1}. {question.QuestionText}")
+                                    </RadzenText>
+                                    <RadzenBadge Text="@($"{answer.PointsEarned:F1} / {question.Points:F1} pts")" BadgeStyle="BadgeStyle.Light" />
+                                </RadzenStack>
+
+                                <RadzenStack Gap="0.35rem">
+                                    @foreach (var choice in question.Choices.OrderBy(c => c.Order))
+                                    {
+                                        var isSelected = selectedChoices.Contains(choice.Id);
+                                        var isCorrect = choice.IsCorrect;
+                                        var badgeStyle = isCorrect
+                                            ? BadgeStyle.Success
+                                            : isSelected ? BadgeStyle.Warning : BadgeStyle.Light;
+
+                                        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
+                                            <RadzenBadge BadgeStyle="@badgeStyle" Text="@GetChoiceLabel(isSelected, isCorrect)" />
+                                            <RadzenText>@choice.ChoiceText</RadzenText>
+                                        </RadzenStack>
+                                    }
+                                </RadzenStack>
+
+                                @if (answer.IsMarkedForReview)
+                                {
+                                    <RadzenBadge Text="Marked for review during exam" BadgeStyle="BadgeStyle.Secondary" />
+                                }
+                            </RadzenStack>
+                        </RadzenCard>
+                    }
+                </RadzenStack>
+            </RadzenCard>
+
+            <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem">
+                <RadzenButton Text="Back to My Results" Icon="arrow_back" ButtonStyle="ButtonStyle.Light" Click="@(() => Navigation.NavigateTo("/student/results"))" />
+                <RadzenButton Text="Go to Dashboard" Icon="dashboard" ButtonStyle="ButtonStyle.Primary" Click="@(() => Navigation.NavigateTo("/"))" />
+            </RadzenStack>
+        </RadzenStack>
+    }
+</RadzenStack>
+
+@code {
+    [Parameter] public int AttemptId { get; set; }
+
+    private ExamAttempt? examAttempt;
+    private bool isLoading = true;
+    private decimal maxScore;
+    private decimal scorePercent;
+    private TimeSpan duration = TimeSpan.Zero;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        await LoadResultAsync();
+    }
+
+    private async Task LoadResultAsync()
+    {
+        isLoading = true;
+        examAttempt = null;
+
+        try
+        {
+            var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            if (authState?.User?.Identity?.IsAuthenticated == true)
+            {
+                var userId = UserManager.GetUserId(authState.User);
+                if (!string.IsNullOrEmpty(userId))
+                {
+                    examAttempt = await ExamService.GetExamResultAsync(AttemptId, userId);
+                    if (examAttempt != null)
+                    {
+                        maxScore = examAttempt.StudentAnswers.Sum(sa => sa.Question.Points);
+                        scorePercent = maxScore > 0 ? (examAttempt.TotalScore / maxScore) * 100 : 0;
+                        var submitted = examAttempt.SubmittedAt ?? examAttempt.StartedAt;
+                        duration = submitted - examAttempt.StartedAt;
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading exam result {AttemptId}: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private List<int> GetSelectedChoiceIds(StudentAnswer answer)
+    {
+        if (answer.SelectedChoiceId.HasValue)
+        {
+            return new List<int> { answer.SelectedChoiceId.Value };
+        }
+
+        if (!string.IsNullOrWhiteSpace(answer.SelectedChoiceIds))
+        {
+            try
+            {
+                var parsed = System.Text.Json.JsonSerializer.Deserialize<List<int>>(answer.SelectedChoiceIds);
+                if (parsed != null)
+                {
+                    return parsed;
+                }
+            }
+            catch
+            {
+                // Ignore parsing errors and return an empty list
+            }
+        }
+
+        return new List<int>();
+    }
+
+    private string GetChoiceLabel(bool isSelected, bool isCorrect)
+    {
+        if (isSelected && isCorrect) return "Selected & Correct";
+        if (isSelected && !isCorrect) return "Selected";
+        if (!isSelected && isCorrect) return "Correct";
+        return "Option";
+    }
+
+    private BadgeStyle GetStatusBadgeStyle(ExamAttemptStatus status)
+    {
+        return status switch
+        {
+            ExamAttemptStatus.Completed => BadgeStyle.Success,
+            ExamAttemptStatus.InProgress => BadgeStyle.Info,
+            ExamAttemptStatus.Abandoned => BadgeStyle.Warning,
+            ExamAttemptStatus.TimeExpired => BadgeStyle.Danger,
+            _ => BadgeStyle.Secondary
+        };
+    }
+
+    private BadgeStyle GetStatusBadge(ExamAttemptStatus status) => GetStatusBadgeStyle(status);
+}

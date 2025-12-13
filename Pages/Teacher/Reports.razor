@@ -1,0 +1,226 @@
+@page "/teacher/reports"
+@attribute [Authorize(Roles = UserRoles.Teacher)]
+@using Microsoft.AspNetCore.Components.Authorization
+@inject IExamService ExamService
+@inject UserManager<ApplicationUser> UserManager
+@inject AuthenticationStateProvider AuthenticationStateProvider
+
+<PageTitle>Reports - PeP v5.0</PageTitle>
+
+<RadzenStack Gap="1rem">
+    <RadzenBreadCrumb>
+        <RadzenBreadCrumbItem Path="/" Text="Home" />
+        <RadzenBreadCrumbItem Text="Reports" />
+    </RadzenBreadCrumb>
+
+    <RadzenCard>
+        <RadzenText TextStyle="TextStyle.H4" TagName="TagName.H1">
+            Exam Reports & Analytics
+        </RadzenText>
+        <RadzenText TextStyle="TextStyle.Body1" class="text-muted">
+            View detailed analytics and reports for your exams
+        </RadzenText>
+    </RadzenCard>
+
+    @if (isLoading)
+    {
+        <RadzenCard>
+            <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="1rem">
+                <RadzenProgressBarCircular ShowValue="false" Size="ProgressBarCircularSize.Medium" />
+                <RadzenText>Loading reports...</RadzenText>
+            </RadzenStack>
+        </RadzenCard>
+    }
+    else
+    {
+        <!-- Summary Cards -->
+        <RadzenRow Gap="1rem">
+            <RadzenColumn Size="12" SizeMD="6" SizeLG="3">
+                <RadzenCard Style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
+                    <RadzenStack Gap="0.5rem">
+                        <RadzenText TextStyle="TextStyle.Body2">Total Exams</RadzenText>
+                        <RadzenText TextStyle="TextStyle.H3">@totalExams</RadzenText>
+                    </RadzenStack>
+                </RadzenCard>
+            </RadzenColumn>
+            <RadzenColumn Size="12" SizeMD="6" SizeLG="3">
+                <RadzenCard Style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); color: white;">
+                    <RadzenStack Gap="0.5rem">
+                        <RadzenText TextStyle="TextStyle.Body2">Total Attempts</RadzenText>
+                        <RadzenText TextStyle="TextStyle.H3">@totalAttempts</RadzenText>
+                    </RadzenStack>
+                </RadzenCard>
+            </RadzenColumn>
+            <RadzenColumn Size="12" SizeMD="6" SizeLG="3">
+                <RadzenCard Style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); color: white;">
+                    <RadzenStack Gap="0.5rem">
+                        <RadzenText TextStyle="TextStyle.Body2">Avg Score</RadzenText>
+                        <RadzenText TextStyle="TextStyle.H3">@($"{averageScore:F1}%")</RadzenText>
+                    </RadzenStack>
+                </RadzenCard>
+            </RadzenColumn>
+            <RadzenColumn Size="12" SizeMD="6" SizeLG="3">
+                <RadzenCard Style="background: linear-gradient(135deg, #fa709a 0%, #fee140 100%); color: white;">
+                    <RadzenStack Gap="0.5rem">
+                        <RadzenText TextStyle="TextStyle.Body2">Completion Rate</RadzenText>
+                        <RadzenText TextStyle="TextStyle.H3">@($"{completionRate:F1}%")</RadzenText>
+                    </RadzenStack>
+                </RadzenCard>
+            </RadzenColumn>
+        </RadzenRow>
+
+        <!-- Exam Performance Chart -->
+        <RadzenCard>
+            <RadzenText TextStyle="TextStyle.H6" TagName="TagName.H2" Style="margin-bottom: 1rem;">
+                Exam Performance Overview
+            </RadzenText>
+            @if (examPerformance?.Any() == true)
+            {
+                <RadzenChart>
+                    <RadzenColumnSeries Data="@examPerformance" CategoryProperty="ExamTitle" Title="Average Score" ValueProperty="AverageScore">
+                        <RadzenSeriesDataLabels Visible="true" />
+                    </RadzenColumnSeries>
+                    <RadzenCategoryAxis Padding="20" />
+                    <RadzenValueAxis>
+                        <RadzenGridLines Visible="true" />
+                        <RadzenAxisTitle Text="Score %" />
+                    </RadzenValueAxis>
+                </RadzenChart>
+            }
+            else
+            {
+                <RadzenAlert AlertStyle="AlertStyle.Info" Icon="info">
+                    <RadzenText>No exam performance data available yet.</RadzenText>
+                </RadzenAlert>
+            }
+        </RadzenCard>
+
+        <!-- Recent Activity -->
+        <RadzenCard>
+            <RadzenText TextStyle="TextStyle.H6" TagName="TagName.H2" Style="margin-bottom: 1rem;">
+                Recent Exam Attempts
+            </RadzenText>
+            @if (recentAttempts?.Any() == true)
+            {
+                <RadzenDataGrid AllowFiltering="true" AllowSorting="true" PageSize="10" AllowPaging="true"
+                                Data="@recentAttempts" TItem="ExamAttempt" ColumnWidth="200px">
+                    <Columns>
+                        <RadzenDataGridColumn TItem="ExamAttempt" Property="Student.FullName" Title="Student" Width="150px" />
+                        <RadzenDataGridColumn TItem="ExamAttempt" Property="Exam.Title" Title="Exam" Width="200px" />
+                        <RadzenDataGridColumn TItem="ExamAttempt" Property="StartedAt" Title="Date" Width="120px">
+                            <Template Context="data">
+                                @data.StartedAt.ToString("MM/dd/yyyy HH:mm")
+                            </Template>
+                        </RadzenDataGridColumn>
+                        <RadzenDataGridColumn TItem="ExamAttempt" Property="TotalScore" Title="Score" Width="100px">
+                            <Template Context="data">
+                                <RadzenBadge BadgeStyle="GetScoreBadgeStyle(data.TotalScore)" Text="@($"{data.TotalScore:F1}%")" />
+                            </Template>
+                        </RadzenDataGridColumn>
+                        <RadzenDataGridColumn TItem="ExamAttempt" Property="Status" Title="Status" Width="100px">
+                            <Template Context="data">
+                                <RadzenBadge BadgeStyle="GetStatusBadgeStyle(data.Status)" Text="@data.Status.ToString()" />
+                            </Template>
+                        </RadzenDataGridColumn>
+                    </Columns>
+                </RadzenDataGrid>
+            }
+            else
+            {
+                <RadzenAlert AlertStyle="AlertStyle.Info" Icon="info">
+                    <RadzenText>No recent exam attempts found.</RadzenText>
+                </RadzenAlert>
+            }
+        </RadzenCard>
+    }
+</RadzenStack>
+
+@code {
+    private bool isLoading = true;
+    private int totalExams;
+    private int totalAttempts;
+    private decimal averageScore;
+    private decimal completionRate;
+    private List<ExamPerformanceData>? examPerformance;
+    private List<ExamAttempt>? recentAttempts;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadReportsData();
+    }
+
+    private async Task LoadReportsData()
+    {
+        try
+        {
+            isLoading = true;
+            var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            if (authState?.User?.Identity?.IsAuthenticated == true)
+            {
+                var userId = UserManager.GetUserId(authState.User);
+                if (!string.IsNullOrEmpty(userId))
+                {
+                    var exams = await ExamService.GetExamsForTeacherAsync(userId);
+                    var attempts = await ExamService.GetAllExamAttemptsForTeacherAsync(userId);
+                    
+                    totalExams = exams.Count;
+                    totalAttempts = attempts.Count;
+                    
+                    var completedAttempts = attempts.Where(a => a.Status == ExamAttemptStatus.Completed).ToList();
+                    averageScore = completedAttempts.Any() ? completedAttempts.Average(a => a.TotalScore) : 0;
+                    completionRate = totalAttempts > 0 ? (completedAttempts.Count * 100.0m / totalAttempts) : 0;
+                    
+                    // Exam performance data
+                    examPerformance = exams.Select(e => new ExamPerformanceData
+                    {
+                        ExamTitle = e.Title,
+                        AverageScore = e.ExamAttempts?.Where(a => a.Status == ExamAttemptStatus.Completed)
+                                                    .Average(a => a.TotalScore) ?? 0
+                    }).ToList();
+                    
+                    // Recent attempts (last 20)
+                    recentAttempts = attempts.OrderByDescending(a => a.StartedAt)
+                                           .Take(20)
+                                           .ToList();
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading reports data: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private BadgeStyle GetScoreBadgeStyle(decimal score)
+    {
+        return score switch
+        {
+            >= 90 => BadgeStyle.Success,
+            >= 80 => BadgeStyle.Primary,
+            >= 70 => BadgeStyle.Warning,
+            _ => BadgeStyle.Danger
+        };
+    }
+
+    private BadgeStyle GetStatusBadgeStyle(ExamAttemptStatus status)
+    {
+        return status switch
+        {
+            ExamAttemptStatus.Completed => BadgeStyle.Success,
+            ExamAttemptStatus.InProgress => BadgeStyle.Info,
+            ExamAttemptStatus.Abandoned => BadgeStyle.Warning,
+            ExamAttemptStatus.TimeExpired => BadgeStyle.Danger,
+            _ => BadgeStyle.Secondary
+        };
+    }
+
+    public class ExamPerformanceData
+    {
+        public string ExamTitle { get; set; } = string.Empty;
+        public decimal AverageScore { get; set; }
+    }
+}

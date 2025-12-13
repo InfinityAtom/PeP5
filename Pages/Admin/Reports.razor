@@ -1,0 +1,289 @@
+@page "/admin/reports"
+@attribute [Authorize(Roles = UserRoles.Admin)]
+@inject IExamService ExamService
+@inject IUserService UserService
+
+<PageTitle>System Reports - PeP v5.0</PageTitle>
+
+<RadzenStack Gap="1rem">
+    <RadzenBreadCrumb>
+        <RadzenBreadCrumbItem Path="/" Text="Home" />
+        <RadzenBreadCrumbItem Text="Administration" />
+        <RadzenBreadCrumbItem Text="System Reports" />
+    </RadzenBreadCrumb>
+
+    <RadzenCard>
+        <RadzenText TextStyle="TextStyle.H4" TagName="TagName.H1">
+            System Reports & Analytics
+        </RadzenText>
+        <RadzenText TextStyle="TextStyle.Body1" class="text-muted">
+            Platform-wide analytics and system performance metrics
+        </RadzenText>
+    </RadzenCard>
+
+    @if (isLoading)
+    {
+        <RadzenCard>
+            <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="1rem">
+                <RadzenProgressBarCircular ShowValue="false" Size="ProgressBarCircularSize.Medium" />
+                <RadzenText>Loading system reports...</RadzenText>
+            </RadzenStack>
+        </RadzenCard>
+    }
+    else
+    {
+        <!-- System Overview Cards -->
+        <RadzenRow Gap="1rem">
+            <RadzenColumn Size="12" SizeMD="6" SizeLG="3">
+                <RadzenCard Style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
+                    <RadzenStack Gap="0.5rem">
+                        <RadzenText TextStyle="TextStyle.Body2">Total Users</RadzenText>
+                        <RadzenText TextStyle="TextStyle.H3">@totalUsers</RadzenText>
+                        <RadzenText TextStyle="TextStyle.Caption">Teachers: @totalTeachers | Students: @totalStudents</RadzenText>
+                    </RadzenStack>
+                </RadzenCard>
+            </RadzenColumn>
+            <RadzenColumn Size="12" SizeMD="6" SizeLG="3">
+                <RadzenCard Style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); color: white;">
+                    <RadzenStack Gap="0.5rem">
+                        <RadzenText TextStyle="TextStyle.Body2">Total Exams</RadzenText>
+                        <RadzenText TextStyle="TextStyle.H3">@totalExams</RadzenText>
+                        <RadzenText TextStyle="TextStyle.Caption">Active: @activeExams</RadzenText>
+                    </RadzenStack>
+                </RadzenCard>
+            </RadzenColumn>
+            <RadzenColumn Size="12" SizeMD="6" SizeLG="3">
+                <RadzenCard Style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); color: white;">
+                    <RadzenStack Gap="0.5rem">
+                        <RadzenText TextStyle="TextStyle.Body2">Total Attempts</RadzenText>
+                        <RadzenText TextStyle="TextStyle.H3">@totalAttempts</RadzenText>
+                        <RadzenText TextStyle="TextStyle.Caption">Completed: @completedAttempts</RadzenText>
+                    </RadzenStack>
+                </RadzenCard>
+            </RadzenColumn>
+            <RadzenColumn Size="12" SizeMD="6" SizeLG="3">
+                <RadzenCard Style="background: linear-gradient(135deg, #fa709a 0%, #fee140 100%); color: white;">
+                    <RadzenStack Gap="0.5rem">
+                        <RadzenText TextStyle="TextStyle.Body2">Platform Score</RadzenText>
+                        <RadzenText TextStyle="TextStyle.H3">@($"{platformAverageScore:F1}%")</RadzenText>
+                        <RadzenText TextStyle="TextStyle.Caption">All completed exams</RadzenText>
+                    </RadzenStack>
+                </RadzenCard>
+            </RadzenColumn>
+        </RadzenRow>
+
+        <!-- Activity Chart -->
+        <RadzenCard>
+            <RadzenText TextStyle="TextStyle.H6" TagName="TagName.H2" Style="margin-bottom: 1rem;">
+                Platform Activity (Last 30 Days)
+            </RadzenText>
+            @if (dailyActivity?.Any() == true)
+            {
+                <RadzenChart>
+                    <RadzenLineSeries Data="@dailyActivity" CategoryProperty="Date" Title="Exam Attempts" ValueProperty="AttemptCount">
+                        <RadzenMarkers MarkerType="MarkerType.Circle" />
+                        <RadzenSeriesDataLabels Visible="false" />
+                    </RadzenLineSeries>
+                    <RadzenCategoryAxis Padding="20" />
+                    <RadzenValueAxis>
+                        <RadzenGridLines Visible="true" />
+                        <RadzenAxisTitle Text="Number of Attempts" />
+                    </RadzenValueAxis>
+                </RadzenChart>
+            }
+            else
+            {
+                <RadzenAlert AlertStyle="AlertStyle.Info" Icon="info">
+                    <RadzenText>No activity data available for the last 30 days.</RadzenText>
+                </RadzenAlert>
+            }
+        </RadzenCard>
+
+        <RadzenRow Gap="1rem">
+            <!-- Most Active Teachers -->
+            <RadzenColumn Size="12" SizeLG="6">
+                <RadzenCard>
+                    <RadzenText TextStyle="TextStyle.H6" TagName="TagName.H2" Style="margin-bottom: 1rem;">
+                        Most Active Teachers
+                    </RadzenText>
+                    @if (topTeachers?.Any() == true)
+                    {
+                        <RadzenDataList WrapItems="false" AllowPaging="false" Data="@topTeachers" TItem="TeacherActivityData">
+                            <Template Context="teacher">
+                                <div class="d-flex align-items-center justify-content-between p-2 border-bottom">
+                                    <div>
+                                        <RadzenText TextStyle="TextStyle.Body1">@teacher.Name</RadzenText>
+                                        <RadzenText TextStyle="TextStyle.Caption" class="text-muted">@teacher.Email</RadzenText>
+                                    </div>
+                                    <RadzenBadge Text="@($"{teacher.ExamCount} exams")" BadgeStyle="BadgeStyle.Info" />
+                                </div>
+                            </Template>
+                        </RadzenDataList>
+                    }
+                    else
+                    {
+                        <RadzenAlert AlertStyle="AlertStyle.Info" Icon="info">
+                            <RadzenText>No teacher activity data available.</RadzenText>
+                        </RadzenAlert>
+                    }
+                </RadzenCard>
+            </RadzenColumn>
+
+            <!-- Top Performing Students -->
+            <RadzenColumn Size="12" SizeLG="6">
+                <RadzenCard>
+                    <RadzenText TextStyle="TextStyle.H6" TagName="TagName.H2" Style="margin-bottom: 1rem;">
+                        Top Performing Students
+                    </RadzenText>
+                    @if (topStudents?.Any() == true)
+                    {
+                        <RadzenDataList WrapItems="false" AllowPaging="false" Data="@topStudents" TItem="StudentPerformanceData">
+                            <Template Context="student">
+                                <div class="d-flex align-items-center justify-content-between p-2 border-bottom">
+                                    <div>
+                                        <RadzenText TextStyle="TextStyle.Body1">@student.Name</RadzenText>
+                                        <RadzenText TextStyle="TextStyle.Caption" class="text-muted">@student.Email</RadzenText>
+                                    </div>
+                                    <RadzenBadge Text="@($"{student.AverageScore:F1}%")" BadgeStyle="GetScoreBadgeStyle(student.AverageScore)" />
+                                </div>
+                            </Template>
+                        </RadzenDataList>
+                    }
+                    else
+                    {
+                        <RadzenAlert AlertStyle="AlertStyle.Info" Icon="info">
+                            <RadzenText>No student performance data available.</RadzenText>
+                        </RadzenAlert>
+                    }
+                </RadzenCard>
+            </RadzenColumn>
+        </RadzenRow>
+    }
+</RadzenStack>
+
+@code {
+    private bool isLoading = true;
+    private int totalUsers;
+    private int totalTeachers;
+    private int totalStudents;
+    private int totalExams;
+    private int activeExams;
+    private int totalAttempts;
+    private int completedAttempts;
+    private decimal platformAverageScore;
+    private List<DailyActivityData>? dailyActivity;
+    private List<TeacherActivityData>? topTeachers;
+    private List<StudentPerformanceData>? topStudents;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadSystemReports();
+    }
+
+    private async Task LoadSystemReports()
+    {
+        try
+        {
+            isLoading = true;
+            
+            // Load user statistics
+            var teachers = await UserService.GetTeachersAsync();
+            var students = await UserService.GetStudentsAsync();
+            totalTeachers = teachers.Count;
+            totalStudents = students.Count;
+            totalUsers = totalTeachers + totalStudents;
+            
+            // Load exam statistics
+            var allExams = await ExamService.GetAllExamsAsync();
+            var allAttempts = await ExamService.GetAllExamAttemptsAsync();
+            
+            totalExams = allExams.Count;
+            activeExams = allExams.Count(e => e.IsActive);
+            totalAttempts = allAttempts.Count;
+            
+            var completed = allAttempts.Where(a => a.Status == ExamAttemptStatus.Completed).ToList();
+            completedAttempts = completed.Count;
+            platformAverageScore = completed.Any() ? completed.Average(a => a.TotalScore) : 0;
+            
+            // Load activity data (last 30 days)
+            var thirtyDaysAgo = DateTime.UtcNow.AddDays(-30);
+            var recentAttempts = allAttempts.Where(a => a.StartedAt >= thirtyDaysAgo).ToList();
+            
+            dailyActivity = recentAttempts
+                .GroupBy(a => a.StartedAt.Date)
+                .Select(g => new DailyActivityData 
+                { 
+                    Date = g.Key.ToString("MM/dd"), 
+                    AttemptCount = g.Count() 
+                })
+                .OrderBy(d => d.Date)
+                .ToList();
+            
+            // Top teachers by exam count
+            topTeachers = teachers
+                .Select(t => new TeacherActivityData
+                {
+                    Name = t.FullName,
+                    Email = t.Email ?? "",
+                    ExamCount = allExams.Count(e => e.CreatedByUserId == t.Id)
+                })
+                .OrderByDescending(t => t.ExamCount)
+                .Take(10)
+                .ToList();
+            
+            // Top students by average score
+            topStudents = students
+                .Select(s => new StudentPerformanceData
+                {
+                    Name = s.FullName,
+                    Email = s.Email ?? "",
+                    AverageScore = completed.Where(a => a.StudentId == s.Id).Any()
+                        ? completed.Where(a => a.StudentId == s.Id).Average(a => a.TotalScore)
+                        : 0
+                })
+                .Where(s => s.AverageScore > 0)
+                .OrderByDescending(s => s.AverageScore)
+                .Take(10)
+                .ToList();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading system reports: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private BadgeStyle GetScoreBadgeStyle(decimal score)
+    {
+        return score switch
+        {
+            >= 90 => BadgeStyle.Success,
+            >= 80 => BadgeStyle.Primary,
+            >= 70 => BadgeStyle.Warning,
+            _ => BadgeStyle.Danger
+        };
+    }
+
+    public class DailyActivityData
+    {
+        public string Date { get; set; } = string.Empty;
+        public int AttemptCount { get; set; }
+    }
+
+    public class TeacherActivityData
+    {
+        public string Name { get; set; } = string.Empty;
+        public string Email { get; set; } = string.Empty;
+        public int ExamCount { get; set; }
+    }
+
+    public class StudentPerformanceData
+    {
+        public string Name { get; set; } = string.Empty;
+        public string Email { get; set; } = string.Empty;
+        public decimal AverageScore { get; set; }
+    }
+}

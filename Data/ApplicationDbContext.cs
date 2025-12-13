@@ -1,0 +1,133 @@
+using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
+using PeP.Models;
+
+namespace PeP.Data
+{
+    public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
+    {
+        public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options): base(options)
+        {
+        }
+
+        public DbSet<Course> Courses { get; set; }
+        public DbSet<Exam> Exams { get; set; }
+        public DbSet<Question> Questions { get; set; }
+        public DbSet<QuestionChoice> QuestionChoices { get; set; }
+        public DbSet<ExamAttempt> ExamAttempts { get; set; }
+        public DbSet<StudentAnswer> StudentAnswers { get; set; }
+        public DbSet<ExamCode> ExamCodes { get; set; }
+        public DbSet<PlatformSetting> PlatformSettings { get; set; }
+
+        protected override void OnModelCreating(ModelBuilder modelBuilder)
+        {
+            base.OnModelCreating(modelBuilder);
+
+            // Configure relationships
+            modelBuilder.Entity<Exam>()
+                .HasOne(e => e.Course)
+                .WithMany(c => c.Exams)
+                .HasForeignKey(e => e.CourseId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<Exam>()
+                .HasOne(e => e.CreatedBy)
+                .WithMany()
+                .HasForeignKey(e => e.CreatedByUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<Question>()
+                .HasOne(q => q.Exam)
+                .WithMany(e => e.Questions)
+                .HasForeignKey(q => q.ExamId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<QuestionChoice>()
+                .HasOne(qc => qc.Question)
+                .WithMany(q => q.Choices)
+                .HasForeignKey(qc => qc.QuestionId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<ExamAttempt>()
+                .HasOne(ea => ea.Student)
+                .WithMany()
+                .HasForeignKey(ea => ea.StudentId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<ExamAttempt>()
+                .HasOne(ea => ea.Exam)
+                .WithMany(e => e.ExamAttempts)
+                .HasForeignKey(ea => ea.ExamId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<StudentAnswer>()
+                .HasOne(sa => sa.ExamAttempt)
+                .WithMany(ea => ea.StudentAnswers)
+                .HasForeignKey(sa => sa.ExamAttemptId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<StudentAnswer>()
+                .HasOne(sa => sa.Question)
+                .WithMany()
+                .HasForeignKey(sa => sa.QuestionId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<StudentAnswer>()
+                .HasOne(sa => sa.SelectedChoice)
+                .WithMany()
+                .HasForeignKey(sa => sa.SelectedChoiceId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<ExamCode>()
+                .HasOne(ec => ec.Exam)
+                .WithMany(e => e.ExamCodes)
+                .HasForeignKey(ec => ec.ExamId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<ExamCode>()
+                .HasOne(ec => ec.CreatedBy)
+                .WithMany()
+                .HasForeignKey(ec => ec.CreatedByUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // Configure decimal precision
+            modelBuilder.Entity<Exam>()
+                .Property(e => e.TotalPoints)
+                .HasColumnType("decimal(18,2)");
+
+            modelBuilder.Entity<Question>()
+                .Property(q => q.Points)
+                .HasColumnType("decimal(18,2)");
+
+            modelBuilder.Entity<ExamAttempt>()
+                .Property(ea => ea.TotalScore)
+                .HasColumnType("decimal(18,2)");
+
+            modelBuilder.Entity<StudentAnswer>()
+                .Property(sa => sa.PointsEarned)
+                .HasColumnType("decimal(18,2)");
+
+            // Configure indexes
+            modelBuilder.Entity<ExamCode>()
+                .HasIndex(ec => ec.Code)
+                .IsUnique();
+
+            modelBuilder.Entity<ExamCode>()
+                .HasIndex(ec => new { ec.Code, ec.ExpiresAt });
+
+            // Seed default platform settings
+            modelBuilder.Entity<PlatformSetting>().HasData(
+                new PlatformSetting { Id = 1, Key = "PlatformName", Value = "PeP - Programming Examination Platform" },
+                new PlatformSetting { Id = 2, Key = "Version", Value = "5.0" },
+                new PlatformSetting { Id = 3, Key = "Company", Value = "Infinity Atom" },
+                new PlatformSetting { Id = 4, Key = "Copyright", Value = "Copyright 2021 - 2025" },
+                new PlatformSetting { Id = 5, Key = "OpenAIApiKey", Value = "" },
+                new PlatformSetting { Id = 6, Key = "DefaultExamDurationMinutes", Value = "120" },
+                new PlatformSetting { Id = 7, Key = "EmailServer", Value = "" },
+                new PlatformSetting { Id = 8, Key = "EmailPort", Value = "587" },
+                new PlatformSetting { Id = 9, Key = "EmailUsername", Value = "" },
+                new PlatformSetting { Id = 10, Key = "EmailPassword", Value = "" }
+            );
+        }
+    }
+}

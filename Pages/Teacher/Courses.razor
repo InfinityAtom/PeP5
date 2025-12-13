@@ -1,0 +1,159 @@
+@page "/teacher/courses"
+@attribute [Authorize(Roles = UserRoles.Teacher)]
+@inject IExamService ExamService
+@inject DialogService DialogService
+@inject NotificationService NotificationService
+
+<PageTitle>My Courses - PeP v5.0</PageTitle>
+
+<RadzenStack Gap="1rem">
+    <RadzenBreadCrumb>
+        <RadzenBreadCrumbItem Path="/" Text="Home" />
+        <RadzenBreadCrumbItem Text="My Courses" />
+    </RadzenBreadCrumb>
+
+    <RadzenRow JustifyContent="JustifyContent.SpaceBetween" AlignItems="AlignItems.Center">
+        <RadzenColumn Size="8">
+            <RadzenText TextStyle="TextStyle.H4" TagName="TagName.H1">
+                My Courses
+            </RadzenText>
+            <RadzenText TextStyle="TextStyle.Body1" class="text-muted">
+                Manage your courses and associated exams
+            </RadzenText>
+        </RadzenColumn>
+        <RadzenColumn Size="4" class="text-end">
+            <RadzenButton Text="Add Course" Icon="add" ButtonStyle="ButtonStyle.Primary" 
+                        Click="@ShowAddCourseDialog" />
+        </RadzenColumn>
+    </RadzenRow>
+
+    @if (isLoading)
+    {
+        <RadzenCard>
+            <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="1rem">
+                <RadzenProgressBarCircular ShowValue="false" Size="ProgressBarCircularSize.Medium" />
+                <RadzenText>Loading courses...</RadzenText>
+            </RadzenStack>
+        </RadzenCard>
+    }
+    else if (courses?.Any() == true)
+    {
+        <RadzenDataGrid AllowFiltering="true" AllowColumnResize="true" AllowAlternatingRows="false" FilterMode="FilterMode.Advanced"
+                        AllowSorting="true" PageSize="10" AllowPaging="true" PagerHorizontalAlign="HorizontalAlign.Left" ShowPagingSummary="true"
+                        Data="@courses" TItem="Course" ColumnWidth="300px" LogicalFilterOperator="LogicalFilterOperator.Or">
+            <Columns>
+                <RadzenDataGridColumn TItem="Course" Property="Code" Title="Code" Frozen="true" Width="100px" />
+                <RadzenDataGridColumn TItem="Course" Property="Name" Title="Course Name" Width="200px" />
+                <RadzenDataGridColumn TItem="Course" Property="Description" Title="Description" Width="300px" />
+                <RadzenDataGridColumn TItem="Course" Property="Exams.Count" Title="Exams" Width="80px" />
+                <RadzenDataGridColumn TItem="Course" Property="CreatedAt" Title="Created" Width="120px">
+                    <Template Context="data">
+                        @data.CreatedAt.ToString("MM/dd/yyyy")
+                    </Template>
+                </RadzenDataGridColumn>
+                <RadzenDataGridColumn TItem="Course" Property="IsActive" Title="Status" Width="100px">
+                    <Template Context="data">
+                        <RadzenBadge BadgeStyle="@(data.IsActive ? BadgeStyle.Success : BadgeStyle.Danger)" 
+                                   Text="@(data.IsActive ? "Active" : "Inactive")" />
+                    </Template>
+                </RadzenDataGridColumn>
+                <RadzenDataGridColumn TItem="Course" Context="data" Filterable="false" Sortable="false" TextAlign="TextAlign.Right" Width="120px">
+                    <Template Context="data">
+                        <RadzenButton Icon="edit" ButtonStyle="ButtonStyle.Light" Variant="Variant.Flat" Size="ButtonSize.Medium" 
+                                    Click="@(() => EditCourse(data))" @onclick:stopPropagation="true" />
+                        <RadzenButton Icon="delete" ButtonStyle="ButtonStyle.Danger" Variant="Variant.Flat" Size="ButtonSize.Medium" 
+                                    Click="@(() => DeleteCourse(data))" @onclick:stopPropagation="true" />
+                    </Template>
+                </RadzenDataGridColumn>
+            </Columns>
+        </RadzenDataGrid>
+    }
+    else
+    {
+        <RadzenCard>
+            <RadzenStack Gap="1rem" class="text-center">
+                <RadzenIcon Icon="library_books" Style="font-size: 4rem; color: var(--rz-secondary);" />
+                <RadzenText TextStyle="TextStyle.H6">No Courses Yet</RadzenText>
+                <RadzenText TextStyle="TextStyle.Body2" class="text-muted">
+                    Create your first course to start organizing your exams.
+                </RadzenText>
+                <RadzenButton Text="Add Course" Icon="add" ButtonStyle="ButtonStyle.Primary" 
+                            Click="@ShowAddCourseDialog" />
+            </RadzenStack>
+        </RadzenCard>
+    }
+</RadzenStack>
+
+@code {
+    private List<Course>? courses;
+    private bool isLoading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadCourses();
+    }
+
+    private async Task LoadCourses()
+    {
+        try
+        {
+            isLoading = true;
+            courses = await ExamService.GetAllCoursesAsync();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading courses: {ex.Message}");
+            NotificationService.Notify(NotificationSeverity.Error, "Error", "Failed to load courses");
+            courses = new List<Course>();
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task ShowAddCourseDialog()
+    {
+        var result = await DialogService.OpenAsync<AddCourseDialog>("Add Course", 
+            new Dictionary<string, object>(), 
+            new DialogOptions() { Width = "500px", Height = "400px" });
+
+        if (result != null)
+        {
+            await LoadCourses();
+        }
+    }
+
+    private async Task EditCourse(Course course)
+    {
+        var result = await DialogService.OpenAsync<EditCourseDialog>("Edit Course", 
+            new Dictionary<string, object>() { { "Course", course } }, 
+            new DialogOptions() { Width = "500px", Height = "400px" });
+
+        if (result != null)
+        {
+            await LoadCourses();
+        }
+    }
+
+    private async Task DeleteCourse(Course course)
+    {
+        var confirm = await DialogService.Confirm($"Are you sure you want to delete the course '{course.Name}'?", 
+            "Delete Course", new ConfirmOptions() { OkButtonText = "Delete", CancelButtonText = "Cancel" });
+
+        if (confirm == true)
+        {
+            try
+            {
+                await ExamService.DeleteCourseAsync(course.Id);
+                NotificationService.Notify(NotificationSeverity.Success, "Success", "Course deleted successfully");
+                await LoadCourses();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error deleting course: {ex.Message}");
+                NotificationService.Notify(NotificationSeverity.Error, "Error", "Failed to delete course");
+            }
+        }
+    }
+}

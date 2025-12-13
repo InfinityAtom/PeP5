@@ -1,0 +1,407 @@
+@page "/teacher/create-exam"
+@using Microsoft.AspNetCore.Components.Authorization
+@attribute [Authorize(Roles = UserRoles.Teacher)]
+@inject IOpenAIService OpenAIService
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject UserManager<ApplicationUser> UserManager
+@inject ApplicationDbContext Context
+@inject NavigationManager Navigation
+@inject NotificationService NotificationService
+@inject DialogService DialogService
+
+<PageTitle>Create Exam - PeP v5.0</PageTitle>
+
+<RadzenStack Gap="0.75rem" Style="max-width:1400px;margin:0 auto;">
+    <RadzenBreadCrumb>
+        <RadzenBreadCrumbItem Path="/" Text="Home" Icon="home" />
+        <RadzenBreadCrumbItem Path="/teacher/exams" Text="Exams" Icon="assignment" />
+        <RadzenBreadCrumbItem Text="Create" Icon="add_circle" />
+    </RadzenBreadCrumb>
+
+    <RadzenCard Style="padding:1.25rem;">
+        <RadzenStack Gap="0.5rem" Style="margin-bottom:1rem;">
+            <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
+                <RadzenIcon Icon="add_circle" Style="font-size:2rem;color:var(--rz-primary);" />
+                <RadzenText TextStyle="TextStyle.H4" TagName="TagName.H1" Style="margin:0;">Create New Exam</RadzenText>
+            </RadzenStack>
+            <RadzenText TextStyle="TextStyle.Body2" class="text-muted">Configure your exam settings and optionally use AI to generate questions automatically.</RadzenText>
+        </RadzenStack>
+
+        <RadzenTemplateForm TItem="CreateExamViewModel" Data="@examModel" Submit="@HandleSubmit">
+            <RadzenStack Gap="1rem">
+                <RadzenTabs>
+                    <Tabs>
+                        <RadzenTabsItem Text="Basic Info & Configuration">
+                            <RadzenRow Style="row-gap:1rem;margin-top:1rem;">
+                                <RadzenColumn Size="12" SizeMD="6">
+                                    <RadzenCard Style="height:100%;background:var(--rz-base-100);">
+                                        <RadzenStack Gap="0.75rem">
+                                            <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
+                                                <RadzenIcon Icon="info" Style="color:var(--rz-info);" />
+                                                <RadzenText TextStyle="TextStyle.H6" Style="margin:0;">Basic Information</RadzenText>
+                                            </RadzenStack>
+
+                                            <RadzenFormField Text="Exam Title" Variant="Variant.Outlined">
+                                                <RadzenTextBox @bind-Value="@examModel.Title" Name="Title" Placeholder="e.g. Midterm Exam - Data Structures" MaxLength="300" Style="width:100%;" />
+                                                <RadzenRequiredValidator Component="Title" Text="Required" />
+                                            </RadzenFormField>
+
+                                            <RadzenFormField Text="Course" Variant="Variant.Outlined">
+                                                <RadzenDropDown @bind-Value="@examModel.CourseId" Data="@courses" TextProperty="Name" ValueProperty="Id" Placeholder="Select a course" Name="CourseId" Style="width:100%;" />
+                                                <RadzenRequiredValidator Component="CourseId" Text="Required" />
+                                            </RadzenFormField>
+
+                                            <RadzenFormField Text="Description (Optional)" Variant="Variant.Outlined">
+                                                <RadzenTextArea @bind-Value="@examModel.Description" Placeholder="Add exam instructions or details..." MaxLength="1000" Rows="4" Style="width:100%;" />
+                                            </RadzenFormField>
+                                        </RadzenStack>
+                                    </RadzenCard>
+                                </RadzenColumn>
+
+                                <RadzenColumn Size="12" SizeMD="6">
+                                    <RadzenCard Style="height:100%;background:var(--rz-base-100);">
+                                        <RadzenStack Gap="0.75rem">
+                                            <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
+                                                <RadzenIcon Icon="settings" Style="color:var(--rz-secondary);" />
+                                                <RadzenText TextStyle="TextStyle.H6" Style="margin:0;">Configuration</RadzenText>
+                                            </RadzenStack>
+
+                                            <RadzenRow Style="row-gap:0.75rem;">
+                                                <RadzenColumn Size="6">
+                                                    <RadzenFormField Text="Duration (min)" Variant="Variant.Outlined">
+                                                        <RadzenNumeric @bind-Value="@examModel.DurationMinutes" Min="1" Max="600" Style="width:100%;" />
+                                                    </RadzenFormField>
+                                                </RadzenColumn>
+                                                <RadzenColumn Size="6">
+                                                    <RadzenFormField Text="Questions" Variant="Variant.Outlined">
+                                                        <RadzenNumeric @bind-Value="@examModel.NumberOfQuestions" Min="1" Max="200" Style="width:100%;" />
+                                                    </RadzenFormField>
+                                                </RadzenColumn>
+                                                <RadzenColumn Size="6">
+                                                    <RadzenFormField Text="Points/Question" Variant="Variant.Outlined">
+                                                        <RadzenNumeric @bind-Value="@examModel.PointsPerQuestion" Min="0.1m" Max="100m" Format="0.0" Style="width:100%;" />
+                                                    </RadzenFormField>
+                                                </RadzenColumn>
+                                                <RadzenColumn Size="6">
+                                                    <RadzenFormField Text="Scoring Type" Variant="Variant.Outlined">
+                                                        <RadzenDropDown @bind-Value="@examModel.ScoringType" Data="@scoringTypes" TextProperty="Text" ValueProperty="Value" Style="width:100%;" />
+                                                    </RadzenFormField>
+                                                </RadzenColumn>
+                                            </RadzenRow>
+
+                                            @if (examModel.ScoringType == "PartialWithPenalty")
+                                            {
+                                                <RadzenFormField Text="Penalty Factor" Variant="Variant.Outlined">
+                                                    <RadzenNumeric @bind-Value="@examModel.PenaltyFactor" Min="0" Max="1" Step="0.05" Format="0.00" Style="width:100%;" />
+                                                </RadzenFormField>
+                                            }
+
+                                            <RadzenCard Style="padding:0.75rem;background:var(--rz-base-200);">
+                                                <RadzenStack Gap="0.5rem">
+                                                    <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
+                                                        <RadzenCheckBox @bind-Value="@examModel.ShuffleQuestions" Name="shuffleQ" />
+                                                        <RadzenLabel Text="Shuffle Questions" Component="shuffleQ" />
+                                                    </RadzenStack>
+                                                    <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
+                                                        <RadzenCheckBox @bind-Value="@examModel.ShuffleChoices" Name="shuffleC" />
+                                                        <RadzenLabel Text="Shuffle Choices" Component="shuffleC" />
+                                                    </RadzenStack>
+                                                    <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
+                                                        <RadzenCheckBox @bind-Value="@examModel.ShowResultsImmediately" Name="showR" />
+                                                        <RadzenLabel Text="Show Results Immediately" Component="showR" />
+                                                    </RadzenStack>
+                                                </RadzenStack>
+                                            </RadzenCard>
+                                        </RadzenStack>
+                                    </RadzenCard>
+                                </RadzenColumn>
+                            </RadzenRow>
+                        </RadzenTabsItem>
+
+                        <RadzenTabsItem Text="AI Question Generation">
+                            <RadzenStack Gap="1rem" Style="margin-top:1rem;">
+                                <RadzenCard Style="background:linear-gradient(135deg, var(--rz-info-lighter) 0%, var(--rz-primary-lighter) 100%);padding:1rem;">
+                                    <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.75rem">
+                                        <RadzenIcon Icon="smart_toy" Style="font-size:2.5rem;color:var(--rz-primary);" />
+                                        <RadzenStack Gap="0.25rem">
+                                            <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
+                                                <RadzenCheckBox @bind-Value="@examModel.UseAI" Name="useAI" />
+                                                <RadzenLabel Text="Enable AI Question Generation" Component="useAI" Style="font-weight:600;font-size:1.1rem;" />
+                                            </RadzenStack>
+                                            <RadzenText TextStyle="TextStyle.Caption" Style="margin-left:1.75rem;">Leverage OpenAI to automatically create programming exam questions based on your prompt.</RadzenText>
+                                        </RadzenStack>
+                                    </RadzenStack>
+                                </RadzenCard>
+
+                                @if (examModel.UseAI)
+                                {
+                                    <RadzenRow Style="row-gap:1rem;">
+                                        <RadzenColumn Size="12" SizeLG="7">
+                                            <RadzenCard Style="height:100%;">
+                                                <RadzenStack Gap="0.75rem">
+                                                    <RadzenFormField Text="AI Prompt" Variant="Variant.Outlined">
+                                                        <RadzenTextArea @bind-Value="@examModel.AIPrompt" Name="AIPrompt" Placeholder="Describe the topics, concepts, or skills to test. E.g., 'C# LINQ queries and lambda expressions for intermediate students'" MaxLength="2000" Rows="6" Style="width:100%;" />
+                                                        <RadzenRequiredValidator Component="AIPrompt" Text="Prompt required when AI is enabled" />
+                                                    </RadzenFormField>
+
+                                                    <RadzenRow Style="row-gap:0.75rem;">
+                                                        <RadzenColumn Size="6">
+                                                            <RadzenFormField Text="Difficulty" Variant="Variant.Outlined">
+                                                                <RadzenDropDown @bind-Value="@examModel.DifficultyLevel" Data="@difficultyLevels" TextProperty="Text" ValueProperty="Value" Style="width:100%;" />
+                                                            </RadzenFormField>
+                                                        </RadzenColumn>
+                                                        <RadzenColumn Size="6">
+                                                            <RadzenFormField Text="Question Type" Variant="Variant.Outlined">
+                                                                <RadzenDropDown @bind-Value="@examModel.QuestionType" Data="@questionTypes" TextProperty="Text" ValueProperty="Value" Style="width:100%;" />
+                                                            </RadzenFormField>
+                                                        </RadzenColumn>
+                                                    </RadzenRow>
+
+                                                    <RadzenButton Text="Preview AI Questions" Icon="visibility" ButtonStyle="ButtonStyle.Info" Click="@PreviewAIQuestions" IsBusy="@isGeneratingPreview" Style="width:100%;" />
+                                                </RadzenStack>
+                                            </RadzenCard>
+                                        </RadzenColumn>
+
+                                        <RadzenColumn Size="12" SizeLG="5">
+                                            @if (previewQuestions.Any())
+                                            {
+                                                <RadzenCard Style="background:var(--rz-base-100);height:100%;max-height:500px;overflow-y:auto;">
+                                                    <RadzenStack Gap="0.75rem">
+                                                        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" JustifyContent="JustifyContent.SpaceBetween">
+                                                            <RadzenText TextStyle="TextStyle.H6" Style="margin:0;">AI Preview</RadzenText>
+                                                            <RadzenBadge Text="@($"{previewQuestions.Count} Generated")" BadgeStyle="BadgeStyle.Success" />
+                                                        </RadzenStack>
+
+                                                        @foreach (var q in previewQuestions.Take(3))
+                                                        {
+                                                            <RadzenCard Style="background:#fff;border-left:3px solid var(--rz-primary);">
+                                                                <RadzenStack Gap="0.5rem">
+                                                                    <RadzenText TextStyle="TextStyle.Body1" Style="font-weight:500;">@q.QuestionText</RadzenText>
+                                                                    @foreach (var c in q.Choices)
+                                                                    {
+                                                                        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem" Style="margin-left:0.5rem;">
+                                                                            <RadzenIcon Icon="@(c.IsCorrect ? "check_circle" : "radio_button_unchecked")" Style="@($"color:{(c.IsCorrect ? "var(--rz-success)" : "#ccc")};font-size:1.1rem;")" />
+                                                                            <RadzenText TextStyle="TextStyle.Body2">@c.ChoiceText</RadzenText>
+                                                                        </RadzenStack>
+                                                                    }
+                                                                </RadzenStack>
+                                                            </RadzenCard>
+                                                        }
+
+                                                        @if (previewQuestions.Count > 3)
+                                                        {
+                                                            <RadzenAlert AlertStyle="AlertStyle.Info" Icon="info" Style="margin-top:0.5rem;">
+                                                                <RadzenText TextStyle="TextStyle.Caption">...and @(previewQuestions.Count - 3) more questions will be generated.</RadzenText>
+                                                            </RadzenAlert>
+                                                        }
+                                                    </RadzenStack>
+                                                </RadzenCard>
+                                            }
+                                            else
+                                            {
+                                                <RadzenCard Style="background:var(--rz-base-100);height:100%;display:flex;align-items:center;justify-content:center;min-height:300px;">
+                                                    <RadzenStack AlignItems="AlignItems.Center" Gap="0.75rem">
+                                                        <RadzenIcon Icon="preview" Style="font-size:4rem;color:var(--rz-text-disabled-color);" />
+                                                        <RadzenText TextStyle="TextStyle.Body2" class="text-muted">Click "Preview AI Questions" to see a sample</RadzenText>
+                                                    </RadzenStack>
+                                                </RadzenCard>
+                                            }
+                                        </RadzenColumn>
+                                    </RadzenRow>
+                                }
+                                else
+                                {
+                                    <RadzenAlert AlertStyle="AlertStyle.Info" Icon="info">
+                                        <RadzenText>When AI is disabled, placeholder questions will be created that you can edit manually after exam creation.</RadzenText>
+                                    </RadzenAlert>
+                                }
+                            </RadzenStack>
+                        </RadzenTabsItem>
+                    </Tabs>
+                </RadzenTabs>
+
+                <RadzenCard Style="background:var(--rz-base-200);padding:1rem;margin-top:0.5rem;">
+                    <RadzenStack Orientation="Orientation.Horizontal" Gap="0.75rem" JustifyContent="JustifyContent.SpaceBetween" AlignItems="AlignItems.Center">
+                        <RadzenButton Text="Cancel" Icon="close" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Medium" Click="@(() => Navigation.NavigateTo("/teacher/exams"))" />
+                        <RadzenStack Orientation="Orientation.Horizontal" Gap="0.75rem">
+                            <RadzenButton Text="Save as Draft" Icon="save" ButtonStyle="ButtonStyle.Secondary" Size="ButtonSize.Medium" Click="@(() => SaveExamAsync(true))" Disabled="@isCreating" />
+                            <RadzenButton Text="Create Exam" Icon="add_circle" ButtonStyle="ButtonStyle.Primary" Size="ButtonSize.Medium" ButtonType="ButtonType.Submit" IsBusy="@isCreating" Disabled="@isCreating" />
+                        </RadzenStack>
+                    </RadzenStack>
+                </RadzenCard>
+            </RadzenStack>
+        </RadzenTemplateForm>
+    </RadzenCard>
+</RadzenStack>
+
+@code {
+    private CreateExamViewModel examModel = new();
+    private List<Course> courses = new();
+    private List<Question> previewQuestions = new();
+    private bool isCreating;
+    private bool isGeneratingPreview;
+
+    private readonly List<DropdownOption> scoringTypes = new()
+    {
+        new() { Text = "All or Nothing", Value = "AllOrNothing" },
+        new() { Text = "Partial Credit with Penalty", Value = "PartialWithPenalty" },
+        new() { Text = "Single Correct Answer", Value = "SingleCorrect" }
+    };
+
+    private readonly List<DropdownOption> difficultyLevels = new()
+    {
+        new() { Text = "Easy", Value = "Easy" },
+        new() { Text = "Medium", Value = "Medium" },
+        new() { Text = "Hard", Value = "Hard" },
+        new() { Text = "Expert", Value = "Expert" }
+    };
+
+    private readonly List<DropdownOption> questionTypes = new()
+    {
+        new() { Text = "Multiple Choice (Single Answer)", Value = "MultipleChoice" },
+        new() { Text = "Multiple Choice (Multiple Answers)", Value = "MultipleAnswer" }
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        courses = await Context.Courses.Where(c => c.IsActive).OrderBy(c => c.Name).ToListAsync();
+        if (courses.Any())
+        {
+            examModel.CourseId = courses.First().Id;
+        }
+    }
+
+    private async Task HandleSubmit() => await SaveExamAsync(false);
+
+    private async Task PreviewAIQuestions()
+    {
+        if (string.IsNullOrWhiteSpace(examModel.AIPrompt))
+        {
+            NotificationService.Notify(NotificationSeverity.Warning, "Missing", "Please enter an AI prompt.");
+            return;
+        }
+
+        isGeneratingPreview = true;
+        try
+        {
+            var previewCount = Math.Min(5, examModel.NumberOfQuestions);
+            previewQuestions = await OpenAIService.GenerateQuestionsAsync(
+                examModel.AIPrompt,
+                previewCount,
+                examModel.DifficultyLevel,
+                examModel.QuestionType,
+                examModel.PointsPerQuestion);
+            NotificationService.Notify(NotificationSeverity.Success, "AI", $"Generated {previewQuestions.Count} preview questions.");
+        }
+        catch (Exception ex)
+        {
+            NotificationService.Notify(NotificationSeverity.Error, "AI Error", ex.Message);
+        }
+        finally
+        {
+            isGeneratingPreview = false;
+        }
+    }
+
+    private async Task SaveExamAsync(bool isDraft = false)
+    {
+        isCreating = true;
+        try
+        {
+            var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            var userId = UserManager.GetUserId(authState.User);
+            if (userId == null)
+            {
+                NotificationService.Notify(NotificationSeverity.Error, "Error", "User not found.");
+                return;
+            }
+
+            var exam = new Exam
+            {
+                Title = examModel.Title,
+                Description = examModel.Description,
+                CourseId = examModel.CourseId,
+                CreatedByUserId = userId,
+                DurationMinutes = examModel.DurationMinutes,
+                NumberOfQuestions = examModel.NumberOfQuestions,
+                TotalPoints = examModel.NumberOfQuestions * examModel.PointsPerQuestion,
+                ScoringType = Enum.Parse<ScoringType>(examModel.ScoringType),
+                PenaltyFactor = examModel.PenaltyFactor,
+                ShuffleQuestions = examModel.ShuffleQuestions,
+                ShuffleChoices = examModel.ShuffleChoices,
+                ShowResultsImmediately = examModel.ShowResultsImmediately,
+                IsActive = !isDraft
+            };
+
+            Context.Exams.Add(exam);
+            await Context.SaveChangesAsync();
+
+            List<Question> questions;
+            if (examModel.UseAI)
+            {
+                if (string.IsNullOrWhiteSpace(examModel.AIPrompt))
+                {
+                    throw new InvalidOperationException("AI prompt is required when using AI.");
+                }
+                questions = await OpenAIService.GenerateQuestionsAsync(
+                    examModel.AIPrompt,
+                    examModel.NumberOfQuestions,
+                    examModel.DifficultyLevel,
+                    examModel.QuestionType,
+                    examModel.PointsPerQuestion);
+            }
+            else
+            {
+                questions = CreatePlaceholderQuestions(examModel.NumberOfQuestions, examModel.PointsPerQuestion);
+            }
+
+            foreach (var q in questions)
+            {
+                q.ExamId = exam.Id;
+                Context.Questions.Add(q);
+            }
+
+            await Context.SaveChangesAsync();
+            var message = isDraft ? "Exam saved as draft." : "Exam created successfully.";
+            NotificationService.Notify(NotificationSeverity.Success, $"{message} Generated {questions.Count} questions.");
+            Navigation.NavigateTo("/teacher/exams");
+        }
+        catch (Exception ex)
+        {
+            NotificationService.Notify(NotificationSeverity.Error, "Error", ex.Message);
+        }
+        finally
+        {
+            isCreating = false;
+        }
+    }
+
+    private List<Question> CreatePlaceholderQuestions(int count, decimal points)
+    {
+        var list = new List<Question>();
+        for (int i = 1; i <= count; i++)
+        {
+            list.Add(new Question
+            {
+                QuestionText = $"Question {i}: [Edit this question]",
+                QuestionType = examModel.QuestionType == "MultipleAnswer" ? QuestionType.MultipleAnswer : QuestionType.MultipleChoice,
+                Points = points,
+                Order = i,
+                Choices = new List<QuestionChoice>
+                {
+                    new() { ChoiceText = "Option A", IsCorrect = true, Order = 1 },
+                    new() { ChoiceText = "Option B", IsCorrect = false, Order = 2 },
+                    new() { ChoiceText = "Option C", IsCorrect = false, Order = 3 },
+                    new() { ChoiceText = "Option D", IsCorrect = false, Order = 4 },
+                }
+            });
+        }
+        return list;
+    }
+
+    public class DropdownOption
+    {
+        public string Text { get; set; } = string.Empty;
+        public string Value { get; set; } = string.Empty;
+    }
+}

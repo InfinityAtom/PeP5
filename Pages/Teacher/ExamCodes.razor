@@ -1,0 +1,231 @@
+@page "/teacher/exam-codes"
+@attribute [Authorize(Roles = UserRoles.Teacher)]
+@using Microsoft.AspNetCore.Components.Authorization
+@inject IExamService ExamService
+@inject UserManager<ApplicationUser> UserManager
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject DialogService DialogService
+@inject NotificationService NotificationService
+
+<PageTitle>Exam Codes - PeP v5.0</PageTitle>
+
+<RadzenStack Gap="1rem">
+    <RadzenBreadCrumb>
+        <RadzenBreadCrumbItem Path="/" Text="Home" />
+        <RadzenBreadCrumbItem Text="Exam Codes" />
+    </RadzenBreadCrumb>
+
+    <RadzenRow JustifyContent="JustifyContent.SpaceBetween" AlignItems="AlignItems.Center">
+        <RadzenColumn Size="8">
+            <RadzenText TextStyle="TextStyle.H4" TagName="TagName.H1">
+                Exam Access Codes
+            </RadzenText>
+            <RadzenText TextStyle="TextStyle.Body1" class="text-muted">
+                Generate and manage access codes for your exams
+            </RadzenText>
+        </RadzenColumn>
+        <RadzenColumn Size="4" class="text-end">
+            <RadzenButton Text="Generate Code" Icon="vpn_key" ButtonStyle="ButtonStyle.Primary" 
+                        Click="@ShowGenerateCodeDialog" />
+        </RadzenColumn>
+    </RadzenRow>
+
+    @if (isLoading)
+    {
+        <RadzenCard>
+            <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="1rem">
+                <RadzenProgressBarCircular ShowValue="false" Size="ProgressBarCircularSize.Medium" />
+                <RadzenText>Loading exam codes...</RadzenText>
+            </RadzenStack>
+        </RadzenCard>
+    }
+    else if (examCodes?.Any() == true)
+    {
+        <RadzenDataGrid AllowFiltering="true" AllowColumnResize="true" AllowAlternatingRows="false" FilterMode="FilterMode.Advanced"
+                        AllowSorting="true" PageSize="10" AllowPaging="true" PagerHorizontalAlign="HorizontalAlign.Left" ShowPagingSummary="true"
+                        Data="@examCodes" TItem="ExamCode" ColumnWidth="300px" LogicalFilterOperator="LogicalFilterOperator.Or">
+            <Columns>
+                <RadzenDataGridColumn TItem="ExamCode" Property="Code" Title="Access Code" Frozen="true" Width="120px">
+                    <Template Context="data">
+                        <RadzenText TextStyle="TextStyle.Body1" Style="font-family: monospace; font-weight: bold;">
+                            @data.Code
+                        </RadzenText>
+                    </Template>
+                </RadzenDataGridColumn>
+                <RadzenDataGridColumn TItem="ExamCode" Property="Exam.Title" Title="Exam" Width="200px" />
+                <RadzenDataGridColumn TItem="ExamCode" Title="Course" Width="160px">
+                    <Template Context="data">
+                        @data.Exam.Course?.Name
+                    </Template>
+                </RadzenDataGridColumn>
+                <RadzenDataGridColumn TItem="ExamCode" Property="ExpiresAt" Title="Expires" Width="120px">
+                    <Template Context="data">
+                        @data.ExpiresAt.ToLocalTime().ToString("MM/dd/yyyy HH:mm")
+                    </Template>
+                </RadzenDataGridColumn>
+                <RadzenDataGridColumn TItem="ExamCode" Property="MaxUses" Title="Max Uses" Width="80px">
+                    <Template Context="data">
+                        @(data.MaxUses?.ToString() ?? "Unlimited")
+                    </Template>
+                </RadzenDataGridColumn>
+                <RadzenDataGridColumn TItem="ExamCode" Property="TimesUsed" Title="Used" Width="80px" />
+                <RadzenDataGridColumn TItem="ExamCode" Property="IsActive" Title="Status" Width="100px">
+                    <Template Context="data">
+                        <RadzenBadge BadgeStyle="@GetStatusBadgeStyle(data)" Text="@GetStatusText(data)" />
+                    </Template>
+                </RadzenDataGridColumn>
+                <RadzenDataGridColumn TItem="ExamCode" Property="Description" Title="Description" Width="200px" />
+                <RadzenDataGridColumn TItem="ExamCode" Context="data" Filterable="false" Sortable="false" TextAlign="TextAlign.Right" Width="120px">
+                    <Template Context="data">
+                        <RadzenButton Icon="content_copy" ButtonStyle="ButtonStyle.Light" Variant="Variant.Flat" Size="ButtonSize.Medium" 
+                                    Click="@(() => CopyCode(data.Code))" @onclick:stopPropagation="true" />
+                        <RadzenButton Icon="edit" ButtonStyle="ButtonStyle.Light" Variant="Variant.Flat" Size="ButtonSize.Medium" 
+                                    Click="@(() => EditCode(data))" @onclick:stopPropagation="true" />
+                        <RadzenButton Icon="delete" ButtonStyle="ButtonStyle.Danger" Variant="Variant.Flat" Size="ButtonSize.Medium" 
+                                    Click="@(() => DeleteCode(data))" @onclick:stopPropagation="true" />
+                    </Template>
+                </RadzenDataGridColumn>
+            </Columns>
+        </RadzenDataGrid>
+    }
+    else
+    {
+        <RadzenCard>
+            <RadzenStack Gap="1rem" class="text-center">
+                <RadzenIcon Icon="vpn_key" Style="font-size: 4rem; color: var(--rz-secondary);" />
+                <RadzenText TextStyle="TextStyle.H6">No Access Codes Yet</RadzenText>
+                <RadzenText TextStyle="TextStyle.Body2" class="text-muted">
+                    Generate access codes to allow students to take your exams.
+                </RadzenText>
+                <RadzenButton Text="Generate Code" Icon="vpn_key" ButtonStyle="ButtonStyle.Primary" 
+                            Click="@ShowGenerateCodeDialog" />
+            </RadzenStack>
+        </RadzenCard>
+    }
+</RadzenStack>
+
+@code {
+    [Inject] private IJSRuntime JSRuntime { get; set; } = default!;
+
+    private List<ExamCode>? examCodes;
+    private bool isLoading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadExamCodes();
+    }
+
+    private async Task LoadExamCodes()
+    {
+        try
+        {
+            isLoading = true;
+            var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            if (authState?.User?.Identity?.IsAuthenticated == true)
+            {
+                var userId = UserManager.GetUserId(authState.User);
+                if (!string.IsNullOrEmpty(userId))
+                {
+                    examCodes = await ExamService.GetExamCodesForTeacherAsync(userId);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading exam codes: {ex.Message}");
+            NotificationService.Notify(NotificationSeverity.Error, "Error", "Failed to load exam codes");
+            examCodes = new List<ExamCode>();
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task ShowGenerateCodeDialog()
+    {
+        var result = await DialogService.OpenAsync<GenerateExamCodeDialog>("Generate Exam Code", 
+            new Dictionary<string, object>(), 
+            new DialogOptions() { Width = "500px", Height = "600px" });
+
+        if (result != null)
+        {
+            await LoadExamCodes();
+        }
+    }
+
+    private async Task EditCode(ExamCode code)
+    {
+        var result = await DialogService.OpenAsync<EditExamCodeDialog>("Edit Exam Code", 
+            new Dictionary<string, object>() { { "ExamCode", code } }, 
+            new DialogOptions() { Width = "500px", Height = "600px" });
+
+        if (result != null)
+        {
+            await LoadExamCodes();
+        }
+    }
+
+    private async Task DeleteCode(ExamCode code)
+    {
+        var confirm = await DialogService.Confirm($"Are you sure you want to delete the exam code '{code.Code}'?", 
+            "Delete Exam Code", new ConfirmOptions() { OkButtonText = "Delete", CancelButtonText = "Cancel" });
+
+        if (confirm == true)
+        {
+            try
+            {
+                await ExamService.DeleteExamCodeAsync(code.Id);
+                NotificationService.Notify(NotificationSeverity.Success, "Success", "Exam code deleted successfully");
+                await LoadExamCodes();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error deleting exam code: {ex.Message}");
+                NotificationService.Notify(NotificationSeverity.Error, "Error", "Failed to delete exam code");
+            }
+        }
+    }
+
+    private async Task CopyCode(string code)
+    {
+        try
+        {
+            await JSRuntime.InvokeVoidAsync("navigator.clipboard.writeText", code);
+            NotificationService.Notify(NotificationSeverity.Success, "Copied", $"Code '{code}' copied to clipboard");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error copying code: {ex.Message}");
+            NotificationService.Notify(NotificationSeverity.Warning, "Copy Failed", "Please copy the code manually");
+        }
+    }
+
+    private BadgeStyle GetStatusBadgeStyle(ExamCode code)
+    {
+        if (!code.IsActive)
+            return BadgeStyle.Danger;
+        
+        if (code.ExpiresAt < DateTime.UtcNow)
+            return BadgeStyle.Warning;
+        
+        if (code.MaxUses.HasValue && code.TimesUsed >= code.MaxUses.Value)
+            return BadgeStyle.Warning;
+        
+        return BadgeStyle.Success;
+    }
+
+    private string GetStatusText(ExamCode code)
+    {
+        if (!code.IsActive)
+            return "Inactive";
+        
+        if (code.ExpiresAt < DateTime.UtcNow)
+            return "Expired";
+        
+        if (code.MaxUses.HasValue && code.TimesUsed >= code.MaxUses.Value)
+            return "Used Up";
+        
+        return "Active";
+    }
+}

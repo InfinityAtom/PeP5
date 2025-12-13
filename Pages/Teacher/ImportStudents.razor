@@ -1,0 +1,363 @@
+@page "/teacher/import-students"
+@attribute [Authorize(Roles = UserRoles.Teacher)]
+@using Microsoft.AspNetCore.Components.Forms
+@inject IUserService UserService
+@inject NotificationService NotificationService
+@inject IJSRuntime JSRuntime
+
+<PageTitle>Import Students - PeP v5.0</PageTitle>
+
+<RadzenStack Gap="1rem">
+    <RadzenBreadCrumb>
+        <RadzenBreadCrumbItem Path="/" Text="Home" />
+        <RadzenBreadCrumbItem Path="/teacher/students" Text="Manage Students" />
+        <RadzenBreadCrumbItem Text="Import Students" />
+    </RadzenBreadCrumb>
+
+    <RadzenCard>
+        <RadzenText TextStyle="TextStyle.H4" TagName="TagName.H1">Import Students</RadzenText>
+        <RadzenText TextStyle="TextStyle.Body1" class="text-muted">Upload a CSV file to bulk import student accounts</RadzenText>
+    </RadzenCard>
+
+    <RadzenRow Gap="2rem">
+        <RadzenColumn Size="12" SizeLG="8">
+            <RadzenCard>
+                <RadzenStack Gap="1rem">
+                    <RadzenText TextStyle="TextStyle.H6" TagName="TagName.H2">Upload CSV File</RadzenText>
+
+                    <InputFile OnChange="@OnFileChange" accept=".csv" />
+
+                    @if (selectedFile is not null)
+                    {
+                        <RadzenAlert AlertStyle="AlertStyle.Info" Icon="info">
+                            Selected file: @selectedFile.Name (@(selectedFile.Size / 1024) KB)
+                        </RadzenAlert>
+                    }
+
+                    <RadzenStack Orientation="Orientation.Horizontal" Gap="1rem">
+                        <RadzenButton Text="Preview" Icon="visibility" ButtonStyle="ButtonStyle.Secondary" Click="@PreviewImport" Disabled="@(!HasValidFile() || isProcessing)" />
+                        <RadzenButton Text="Import Students" Icon="upload" ButtonStyle="ButtonStyle.Primary" Click="@ProcessImport" Disabled="@(!HasValidPreview() || isProcessing)" IsBusy="@isProcessing" />
+                        <RadzenButton Text="Download Template" Icon="download" ButtonStyle="ButtonStyle.Light" Click="@DownloadTemplate" />
+                    </RadzenStack>
+
+                    @if (isProcessing)
+                    {
+                        <RadzenAlert AlertStyle="AlertStyle.Info" Icon="hourglass_empty">
+                            <RadzenText>Processing... Please wait.</RadzenText>
+                        </RadzenAlert>
+                    }
+                </RadzenStack>
+            </RadzenCard>
+        </RadzenColumn>
+
+        <RadzenColumn Size="12" SizeLG="4">
+            <RadzenCard>
+                <RadzenStack Gap="1rem">
+                    <RadzenText TextStyle="TextStyle.H6" TagName="TagName.H2">CSV Format Requirements</RadzenText>
+                    <RadzenText TextStyle="TextStyle.Body2">Your CSV file should contain the following columns:</RadzenText>
+                    <RadzenText TextStyle="TextStyle.Caption" Style="font-family: monospace; background: #f5f5f5; padding: 8px; border-radius: 4px;">FirstName,LastName,Email,StudentId</RadzenText>
+                    <RadzenText TextStyle="TextStyle.Body2"><strong>Example:</strong></RadzenText>
+                    <RadzenText TextStyle="TextStyle.Caption" Style="font-family: monospace; background: #f5f5f5; padding: 8px; border-radius: 4px;">John,Doe,john.doe@email.com,S001<br/>Jane,Smith,jane.smith@email.com,S002</RadzenText>
+                    <RadzenAlert AlertStyle="AlertStyle.Warning" Icon="warning">
+                        <RadzenText TextStyle="TextStyle.Caption">Default password will be set to "Student123!" for all imported accounts. Students should change their passwords after first login.</RadzenText>
+                    </RadzenAlert>
+                </RadzenStack>
+            </RadzenCard>
+        </RadzenColumn>
+    </RadzenRow>
+
+    @if (previewData?.Any() == true)
+    {
+        <RadzenCard>
+            <RadzenText TextStyle="TextStyle.H6" TagName="TagName.H2" Style="margin-bottom: 1rem;">Import Preview (@previewData.Count students)</RadzenText>
+
+            @if (previewData.Any(d => !d.IsValid))
+            {
+                <RadzenAlert AlertStyle="AlertStyle.Warning" Icon="warning" Style="margin-bottom: 1rem;">
+                    <RadzenText>@previewData.Count(d => !d.IsValid) record(s) have validation errors and will be skipped. Only @previewData.Count(d => d.IsValid) valid record(s) will be imported.</RadzenText>
+                </RadzenAlert>
+            }
+
+            <RadzenDataGrid AllowFiltering="false" AllowSorting="false" PageSize="10" AllowPaging="true" Data="@previewData" TItem="PeP.Services.StudentImportData" ColumnWidth="200px">
+                <Columns>
+                    <RadzenDataGridColumn TItem="PeP.Services.StudentImportData" Property="FirstName" Title="First Name" Width="120px" />
+                    <RadzenDataGridColumn TItem="PeP.Services.StudentImportData" Property="LastName" Title="Last Name" Width="120px" />
+                    <RadzenDataGridColumn TItem="PeP.Services.StudentImportData" Property="Email" Title="Email" Width="200px" />
+                    <RadzenDataGridColumn TItem="PeP.Services.StudentImportData" Property="StudentId" Title="Student ID" Width="100px" />
+                    <RadzenDataGridColumn Title="Status" Width="100px">
+                        <Template Context="data">
+                            <RadzenBadge BadgeStyle="@(data.IsValid ? BadgeStyle.Success : BadgeStyle.Danger)" Text="@(data.IsValid ? "Valid" : "Error")" />
+                        </Template>
+                    </RadzenDataGridColumn>
+                    <RadzenDataGridColumn TItem="PeP.Services.StudentImportData" Property="ErrorMessage" Title="Issues" Width="200px">
+                        <Template Context="data">
+                            @if (!string.IsNullOrEmpty(data.ErrorMessage))
+                            {
+                                <RadzenText TextStyle="TextStyle.Caption" Style="color: var(--rz-danger);">@data.ErrorMessage</RadzenText>
+                            }
+                        </Template>
+                    </RadzenDataGridColumn>
+                </Columns>
+            </RadzenDataGrid>
+        </RadzenCard>
+    }
+
+    @if (importResults?.Any() == true)
+    {
+        <RadzenCard>
+            <RadzenText TextStyle="TextStyle.H6" TagName="TagName.H2" Style="margin-bottom: 1rem;">Import Results</RadzenText>
+            <RadzenAlert AlertStyle="AlertStyle.Success" Icon="check_circle">Successfully imported @importResults.Count(r => r.Success) out of @importResults.Count students.</RadzenAlert>
+            @if (importResults.Any(r => !r.Success))
+            {
+                <RadzenAlert AlertStyle="AlertStyle.Danger" Icon="error">Failed to import @importResults.Count(r => !r.Success) students. See details below.</RadzenAlert>
+                <RadzenDataGrid AllowFiltering="false" AllowSorting="false" PageSize="10" AllowPaging="true" Data="@importResults.Where(r => !r.Success)" TItem="PeP.Services.ImportResult" ColumnWidth="200px">
+                    <Columns>
+                        <RadzenDataGridColumn TItem="PeP.Services.ImportResult" Property="StudentData.Email" Title="Email" Width="200px" />
+                        <RadzenDataGridColumn TItem="PeP.Services.ImportResult" Property="StudentData.StudentId" Title="Student ID" Width="100px" />
+                        <RadzenDataGridColumn TItem="PeP.Services.ImportResult" Property="ErrorMessage" Title="Error" Width="300px" />
+                    </Columns>
+                </RadzenDataGrid>
+            }
+        </RadzenCard>
+    }
+</RadzenStack>
+
+@code {
+    private IBrowserFile? selectedFile;
+    private List<PeP.Services.StudentImportData>? previewData;
+    private List<PeP.Services.ImportResult>? importResults;
+    private bool isProcessing = false;
+
+    private void OnFileChange(InputFileChangeEventArgs e)
+    {
+        selectedFile = e.File;
+        previewData = null;
+        importResults = null;
+        StateHasChanged();
+    }
+
+    private bool HasValidFile() => selectedFile is not null;
+    private bool HasValidPreview() => previewData?.Any(d => d.IsValid) == true;
+
+    private async Task PreviewImport()
+    {
+        if (!HasValidFile())
+        {
+            NotificationService.Notify(NotificationSeverity.Warning, "Warning", "Please select a CSV file first");
+            return;
+        }
+
+        try
+        {
+            isProcessing = true;
+            StateHasChanged();
+
+            var file = selectedFile!;
+            if (file.Size > 1024 * 1024)
+            {
+                NotificationService.Notify(NotificationSeverity.Error, "Error", "File size must be less than 1MB");
+                return;
+            }
+            if (!file.Name.EndsWith(".csv", StringComparison.OrdinalIgnoreCase))
+            {
+                NotificationService.Notify(NotificationSeverity.Error, "Error", "Please select a CSV file");
+                return;
+            }
+
+            using var stream = file.OpenReadStream(maxAllowedSize: 1024 * 1024);
+            using var reader = new StreamReader(stream);
+            var csvContent = await reader.ReadToEndAsync();
+            if (string.IsNullOrWhiteSpace(csvContent))
+            {
+                NotificationService.Notify(NotificationSeverity.Error, "Error", "The selected file is empty");
+                return;
+            }
+
+            previewData = ParseCsvContent(csvContent);
+            importResults = null;
+
+            NotificationService.Notify(NotificationSeverity.Success, "Success", $"Parsed {previewData.Count} record(s). {previewData.Count(d => d.IsValid)} valid.");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error previewing import: {ex.Message}");
+            NotificationService.Notify(NotificationSeverity.Error, "Error", $"Failed to parse CSV file: {ex.Message}");
+            previewData = null;
+        }
+        finally
+        {
+            isProcessing = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task ProcessImport()
+    {
+        if (!HasValidPreview())
+        {
+            NotificationService.Notify(NotificationSeverity.Warning, "Warning", "No valid data to import");
+            return;
+        }
+
+        var validData = previewData!.Where(d => d.IsValid).ToList();
+        if (!validData.Any())
+        {
+            NotificationService.Notify(NotificationSeverity.Warning, "Warning", "No valid records found");
+            return;
+        }
+
+        try
+        {
+            isProcessing = true;
+            StateHasChanged();
+
+            importResults = await UserService.ImportStudentsAsync(validData);
+
+            var successCount = importResults.Count(r => r.Success);
+            var totalCount = importResults.Count;
+
+            if (successCount == totalCount)
+            {
+                NotificationService.Notify(NotificationSeverity.Success, "Import Complete", $"Successfully imported all {successCount} students!");
+            }
+            else if (successCount > 0)
+            {
+                NotificationService.Notify(NotificationSeverity.Warning, "Import Partial", $"Imported {successCount} out of {totalCount} students. Check results below for details.");
+            }
+            else
+            {
+                NotificationService.Notify(NotificationSeverity.Error, "Import Failed", "No students were imported successfully. Check results below for details.");
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error importing students: {ex.Message}");
+            NotificationService.Notify(NotificationSeverity.Error, "Error", $"Import failed: {ex.Message}");
+        }
+        finally
+        {
+            isProcessing = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task DownloadTemplate()
+    {
+        try
+        {
+            var csvTemplate = "FirstName,LastName,Email,StudentId\nJohn,Doe,john.doe@email.com,S001\nJane,Smith,jane.smith@email.com,S002";
+            var bytes = System.Text.Encoding.UTF8.GetBytes(csvTemplate);
+            var base64 = Convert.ToBase64String(bytes);
+
+            await JSRuntime.InvokeVoidAsync("downloadFile", "students-template.csv", base64);
+            NotificationService.Notify(NotificationSeverity.Info, "Template Downloaded", "CSV template has been downloaded");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error downloading template: {ex.Message}");
+            NotificationService.Notify(NotificationSeverity.Error, "Error", "Failed to download template");
+        }
+    }
+
+    private List<PeP.Services.StudentImportData> ParseCsvContent(string csvContent)
+    {
+        var lines = csvContent.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+        var results = new List<PeP.Services.StudentImportData>();
+        if (lines.Length < 2) return results;
+
+        for (int i = 1; i < lines.Length; i++)
+        {
+            var line = lines[i].Trim();
+            if (string.IsNullOrEmpty(line)) continue;
+
+            try
+            {
+                var columns = ParseCsvLine(line);
+                if (columns.Count >= 3)
+                {
+                    var student = new PeP.Services.StudentImportData
+                    {
+                        FirstName = columns.Count > 0 ? columns[0].Trim().Trim('"') : string.Empty,
+                        LastName  = columns.Count > 1 ? columns[1].Trim().Trim('"') : string.Empty,
+                        Email     = columns.Count > 2 ? columns[2].Trim().Trim('"') : string.Empty,
+                        StudentId = columns.Count > 3 ? columns[3].Trim().Trim('"') : $"S{DateTime.Now.Ticks % 10000:D4}"
+                    };
+
+                    ValidateStudentData(student);
+                    results.Add(student);
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error parsing line {i}: {ex.Message}");
+            }
+        }
+
+        return results;
+    }
+
+    private List<string> ParseCsvLine(string line)
+    {
+        var result = new List<string>();
+        bool inQuotes = false;
+        var current = new System.Text.StringBuilder();
+
+        for (int i = 0; i < line.Length; i++)
+        {
+            var c = line[i];
+            if (c == '"')
+            {
+                inQuotes = !inQuotes;
+            }
+            else if (c == ',' && !inQuotes)
+            {
+                result.Add(current.ToString());
+                current.Clear();
+            }
+            else
+            {
+                current.Append(c);
+            }
+        }
+
+        result.Add(current.ToString());
+        return result;
+    }
+
+    private void ValidateStudentData(PeP.Services.StudentImportData student)
+    {
+        var errors = new List<string>();
+        if (string.IsNullOrWhiteSpace(student.FirstName)) errors.Add("First name is required");
+        if (string.IsNullOrWhiteSpace(student.LastName))  errors.Add("Last name is required");
+        if (string.IsNullOrWhiteSpace(student.Email))     errors.Add("Email is required");
+        else if (!IsValidEmail(student.Email))            errors.Add("Invalid email format");
+        if (string.IsNullOrWhiteSpace(student.StudentId)) errors.Add("Student ID is required");
+
+        student.IsValid = !errors.Any();
+        student.ErrorMessage = string.Join(", ", errors);
+    }
+
+    private bool IsValidEmail(string email)
+    {
+        try
+        {
+            var addr = new System.Net.Mail.MailAddress(email);
+            return addr.Address == email;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+}
+
+<script>
+    window.downloadFile = (filename, base64Data) => {
+        const link = document.createElement('a');
+        link.download = filename;
+        link.href = 'data:text/csv;base64,' + base64Data;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
+</script>

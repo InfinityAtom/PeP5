@@ -1,0 +1,97 @@
+@inject IUserService UserService
+@inject NotificationService NotificationService
+
+<RadzenTemplateForm TItem="TeacherViewModel" Data="@model" Submit="@OnSubmit">
+    <RadzenStack Gap="1rem">
+        <RadzenFormField Text="First Name" Variant="Variant.Outlined">
+            <RadzenTextBox @bind-Value="@model.FirstName" MaxLength="50" Name="FirstName" />
+            <RadzenRequiredValidator Component="FirstName" Text="First name is required" />
+        </RadzenFormField>
+
+        <RadzenFormField Text="Last Name" Variant="Variant.Outlined">
+            <RadzenTextBox @bind-Value="@model.LastName" MaxLength="50" Name="LastName" />
+            <RadzenRequiredValidator Component="LastName" Text="Last name is required" />
+        </RadzenFormField>
+
+        <RadzenFormField Text="Email" Variant="Variant.Outlined">
+            <RadzenTextBox @bind-Value="@model.Email" MaxLength="100" Name="Email" />
+            <RadzenRequiredValidator Component="Email" Text="Email is required" />
+            <RadzenEmailValidator Component="Email" Text="Invalid email format" />
+        </RadzenFormField>
+
+        <RadzenFormField Text="Department" Variant="Variant.Outlined">
+            <RadzenTextBox @bind-Value="@model.Department" MaxLength="100" Name="Department" />
+        </RadzenFormField>
+
+        <RadzenFormField Text="Password" Variant="Variant.Outlined">
+            <RadzenPassword @bind-Value="@model.Password" MaxLength="100" Name="Password" />
+            <RadzenRequiredValidator Component="Password" Text="Password is required" />
+        </RadzenFormField>
+
+        <RadzenFormField Text="Confirm Password" Variant="Variant.Outlined">
+            <RadzenPassword @bind-Value="@model.ConfirmPassword" MaxLength="100" Name="ConfirmPassword" />
+            <RadzenRequiredValidator Component="ConfirmPassword" Text="Password confirmation is required" />
+            <RadzenCompareValidator Component="ConfirmPassword" Value="@model.Password" Text="Passwords do not match" />
+        </RadzenFormField>
+
+        <RadzenStack Orientation="Orientation.Horizontal" Gap="1rem" JustifyContent="JustifyContent.End">
+            <RadzenButton Text="Cancel" ButtonStyle="ButtonStyle.Light" Click="@(() => dialogService.Close(false))" />
+            <RadzenButton Text="Add Teacher" ButtonStyle="ButtonStyle.Primary" ButtonType="ButtonType.Submit" IsBusy="@isSubmitting" />
+        </RadzenStack>
+    </RadzenStack>
+</RadzenTemplateForm>
+
+@code {
+    [Inject] public DialogService dialogService { get; set; } = default!;
+
+    private TeacherViewModel model = new();
+    private bool isSubmitting;
+
+    private async Task OnSubmit()
+    {
+        try
+        {
+            isSubmitting = true;
+
+            var registerModel = new RegisterViewModel
+            {
+                FirstName = model.FirstName,
+                LastName = model.LastName,
+                Email = model.Email,
+                Password = model.Password,
+                Department = model.Department,
+                Role = UserRoles.Teacher
+            };
+
+            var result = await UserService.CreateTeacherAsync(registerModel);
+            if (result != null)
+            {
+                NotificationService.Notify(NotificationSeverity.Success, "Success", "Teacher added successfully");
+                dialogService.Close(true);
+            }
+            else
+            {
+                NotificationService.Notify(NotificationSeverity.Error, "Error", "Failed to add teacher");
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error adding teacher: {ex.Message}");
+            NotificationService.Notify(NotificationSeverity.Error, "Error", "An error occurred while adding the teacher");
+        }
+        finally
+        {
+            isSubmitting = false;
+        }
+    }
+
+    public class TeacherViewModel
+    {
+        public string FirstName { get; set; } = string.Empty;
+        public string LastName { get; set; } = string.Empty;
+        public string Email { get; set; } = string.Empty;
+        public string Department { get; set; } = string.Empty;
+        public string Password { get; set; } = string.Empty;
+        public string ConfirmPassword { get; set; } = string.Empty;
+    }
+}

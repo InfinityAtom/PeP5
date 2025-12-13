@@ -1,0 +1,171 @@
+@page "/Account/Login"
+@using Microsoft.AspNetCore.Identity
+@inject SignInManager<ApplicationUser> SignInManager
+@inject UserManager<ApplicationUser> UserManager
+@inject NavigationManager Navigation
+@inject NotificationService NotificationService
+@inject IJSRuntime JSRuntime
+
+<PageTitle>Login - PeP v5.0</PageTitle>
+
+<RadzenRow JustifyContent="JustifyContent.Center" class="rz-min-vh-100" AlignItems="AlignItems.Center">
+    <RadzenColumn Size="12" SizeMD="6" SizeLG="4">
+        <RadzenCard Style="box-shadow: 0 10px 30px rgba(0,0,0,0.1);">
+            <RadzenStack Gap="1.5rem">
+                <!-- Logo and Title -->
+                <RadzenStack Gap="1rem" class="rz-text-align-center">
+                    <RadzenIcon Icon="school" Style="font-size: 4rem; color: var(--rz-primary);" />
+                    <RadzenText TextStyle="TextStyle.H4" TagName="TagName.H1">
+                        Welcome to PeP
+                    </RadzenText>
+                    <RadzenText TextStyle="TextStyle.Body1" class="rz-color-secondary">
+                        Programming Examination Platform
+                    </RadzenText>
+                </RadzenStack>
+
+                <!-- Login Form -->
+                <RadzenTemplateForm TItem="LoginModel" Data="@loginModel" Submit="@HandleValidSubmit">
+                    <RadzenStack Gap="1rem">
+                        <RadzenFormField Text="Email" Variant="Variant.Outlined">
+                            <RadzenTextBox @bind-Value="@loginModel.Email" 
+                                         Name="Email"
+                                         Placeholder="Enter your email" 
+                                         Style="width: 100%;" />
+                            <RadzenRequiredValidator Component="Email" Text="Email is required" />
+                            <RadzenEmailValidator Component="Email" Text="Please enter a valid email" />
+                        </RadzenFormField>
+
+                        <RadzenFormField Text="Password" Variant="Variant.Outlined">
+                            <RadzenPassword @bind-Value="@loginModel.Password" 
+                                          Name="Password"
+                                          Placeholder="Enter your password" 
+                                          Style="width: 100%;" />
+                            <RadzenRequiredValidator Component="Password" Text="Password is required" />
+                        </RadzenFormField>
+
+                        <RadzenRow AlignItems="AlignItems.Center">
+                            <RadzenColumn Size="12">
+                                <RadzenCheckBox @bind-Value="@loginModel.RememberMe" Name="RememberMe" />
+                                <RadzenLabel Text="Remember me" Component="RememberMe" Style="margin-left: 8px;" />
+                            </RadzenColumn>
+                        </RadzenRow>
+
+                        <RadzenButton ButtonType="ButtonType.Submit" 
+                                    Text="Sign In" 
+                                    Icon="login" 
+                                    ButtonStyle="ButtonStyle.Primary"
+                                    Size="ButtonSize.Large"
+                                    Style="width: 100%;"
+                                    IsBusy="@isLoading"
+                                    Disabled="@isLoading" />
+
+                        @if (!string.IsNullOrEmpty(errorMessage))
+                        {
+                            <RadzenAlert AlertStyle="AlertStyle.Danger" Icon="error" Shade="Shade.Lighter">
+                                @errorMessage
+                            </RadzenAlert>
+                        }
+                    </RadzenStack>
+                </RadzenTemplateForm>
+
+                <!-- Admin Account Info -->
+                <RadzenAlert AlertStyle="AlertStyle.Info" Icon="info" Shade="Shade.Lighter">
+                    <RadzenText TextStyle="TextStyle.Body2">
+                        <strong>Default Admin Account:</strong><br />
+                        Email: admin@pep.com<br />
+                        Password: Admin123!
+                    </RadzenText>
+                </RadzenAlert>
+
+                <!-- Footer -->
+                <RadzenStack class="rz-text-align-center">
+                    <RadzenText TextStyle="TextStyle.Body2" class="rz-color-secondary">
+                        © 2025 Infinity Atom. All rights reserved.
+                    </RadzenText>
+                </RadzenStack>
+            </RadzenStack>
+        </RadzenCard>
+    </RadzenColumn>
+</RadzenRow>
+
+@code {
+    private LoginModel loginModel = new();
+    private bool isLoading = false;
+    private string errorMessage = string.Empty;
+
+    protected override void OnInitialized()
+    {
+        try
+        {
+            var uri = new Uri(Navigation.Uri);
+            var query = System.Web.HttpUtility.ParseQueryString(uri.Query);
+            var errorCode = query["error"];
+
+            errorMessage = errorCode switch
+            {
+                "invalid" => "Invalid email or password.",
+                "locked" => "Your account is locked. Please try again later.", 
+                "2fa" => "Two-factor authentication is required.",
+                "exception" => "An error occurred during login. Please try again.",
+                _ => string.Empty
+            };
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error parsing URL: {ex.Message}");
+        }
+    }
+
+    private async Task HandleValidSubmit()
+    {
+        if (isLoading) return;
+        
+        isLoading = true;
+        errorMessage = string.Empty;
+        
+        try
+        {
+            var loginScript = $@"
+                var form = document.createElement('form');
+                form.method = 'POST';
+                form.action = '/Account/ProcessLogin';
+                
+                var emailInput = document.createElement('input');
+                emailInput.type = 'hidden';
+                emailInput.name = 'email';
+                emailInput.value = '{System.Web.HttpUtility.JavaScriptStringEncode(loginModel.Email)}';
+                form.appendChild(emailInput);
+                
+                var passwordInput = document.createElement('input');
+                passwordInput.type = 'hidden';
+                passwordInput.name = 'password';
+                passwordInput.value = '{System.Web.HttpUtility.JavaScriptStringEncode(loginModel.Password)}';
+                form.appendChild(passwordInput);
+                
+                var rememberInput = document.createElement('input');
+                rememberInput.type = 'hidden';
+                rememberInput.name = 'rememberMe';
+                rememberInput.value = '{loginModel.RememberMe.ToString().ToLower()}';
+                form.appendChild(rememberInput);
+                
+                document.body.appendChild(form);
+                form.submit();
+            ";
+            
+            await JSRuntime.InvokeVoidAsync("eval", loginScript);
+        }
+        catch (Exception ex)
+        {
+            errorMessage = "An error occurred during login. Please try again.";
+            Console.WriteLine($"Login error: {ex.Message}");
+            isLoading = false;
+        }
+    }
+
+    public class LoginModel
+    {
+        public string Email { get; set; } = string.Empty;
+        public string Password { get; set; } = string.Empty;
+        public bool RememberMe { get; set; }
+    }
+}

@@ -1,0 +1,49 @@
+@page "/Account/Logout"
+@using Microsoft.AspNetCore.Identity
+@inject SignInManager<ApplicationUser> SignInManager
+@inject NavigationManager Navigation
+@inject IJSRuntime JSRuntime
+
+<PageTitle>Logout - PeP v5.0</PageTitle>
+
+<RadzenRow JustifyContent="JustifyContent.Center" class="rz-min-vh-100" AlignItems="AlignItems.Center">
+    <RadzenColumn Size="12" SizeMD="6">
+        <RadzenCard class="rz-text-align-center">
+            <RadzenStack Gap="1.5rem">
+                <RadzenIcon Icon="logout" Style="font-size: 4rem; color: var(--rz-info);" />
+                <RadzenText TextStyle="TextStyle.H4" TagName="TagName.H1">
+                    Signing out...
+                </RadzenText>
+                <RadzenText TextStyle="TextStyle.Body1" class="rz-color-secondary">
+                    You will be redirected shortly.
+                </RadzenText>
+                <RadzenProgressBarCircular ShowValue="false" />
+            </RadzenStack>
+        </RadzenCard>
+    </RadzenColumn>
+</RadzenRow>
+
+@code {
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            // Use JavaScript to perform logout to avoid header issues
+            var logoutScript = @"
+                var form = document.createElement('form');
+                form.method = 'POST';
+                form.action = '/Account/ProcessLogout';
+                document.body.appendChild(form);
+                form.submit();
+            ";
+            
+            await JSRuntime.InvokeVoidAsync("eval", logoutScript);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Logout error: {ex.Message}");
+            // Fallback to direct navigation
+            Navigation.NavigateTo("/", forceLoad: true);
+        }
+    }
+}

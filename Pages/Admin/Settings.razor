@@ -1,0 +1,294 @@
+@page "/admin/settings"
+@attribute [Authorize(Roles = UserRoles.Admin)]
+@inject ApplicationDbContext Context
+@inject NotificationService NotificationService
+@inject DialogService DialogService
+
+<PageTitle>Platform Settings - PeP v5.0</PageTitle>
+
+<RadzenStack Gap="1.25rem">
+    <RadzenBreadCrumb>
+        <RadzenBreadCrumbItem Path="/" Text="Home" />
+        <RadzenBreadCrumbItem Text="Platform Settings" />
+    </RadzenBreadCrumb>
+
+    <RadzenCard Style="padding:1.25rem;">
+        <RadzenStack Gap="0.75rem">
+            <RadzenText TextStyle="TextStyle.H4" TagName="TagName.H1" Style="margin-bottom:0.25rem;">Platform Settings</RadzenText>
+            <RadzenText TextStyle="TextStyle.Body2" class="text-muted">Configure global platform, integration, and default exam settings.</RadzenText>
+
+            <RadzenTemplateForm Data="@model" TItem="SettingsModel" Submit="@OnSave" Style="margin-top:0.5rem;">
+                <RadzenStack Gap="1.25rem">
+                    <RadzenRow Style="row-gap:1rem;">
+                        <RadzenColumn Size="12" SizeMD="6">
+                            <RadzenFieldset Text="Platform Information" Style="min-height:100%;">
+                                <RadzenStack Gap="0.75rem">
+                                    <RadzenFormField Text="Platform Name" Variant="Variant.Outlined">
+                                        <RadzenTextBox @bind-Value="model.PlatformName" Name="PlatformName" MaxLength="200" />
+                                        <RadzenRequiredValidator Component="PlatformName" Text="Platform name required" />
+                                    </RadzenFormField>
+                                    <RadzenFormField Text="Version" Variant="Variant.Outlined">
+                                        <RadzenTextBox @bind-Value="model.Version" Name="Version" MaxLength="50" />
+                                    </RadzenFormField>
+                                    <RadzenFormField Text="Company Name" Variant="Variant.Outlined">
+                                        <RadzenTextBox @bind-Value="model.CompanyName" Name="CompanyName" MaxLength="200" />
+                                    </RadzenFormField>
+                                    <RadzenFormField Text="Copyright" Variant="Variant.Outlined">
+                                        <RadzenTextBox @bind-Value="model.Copyright" Name="Copyright" MaxLength="150" />
+                                    </RadzenFormField>
+                                </RadzenStack>
+                            </RadzenFieldset>
+                        </RadzenColumn>
+
+                        <RadzenColumn Size="12" SizeMD="6">
+                            <RadzenFieldset Text="Defaults" Style="min-height:100%;">
+                                <RadzenStack Gap="0.75rem">
+                                    <RadzenFormField Text="Default Exam Duration (Minutes)" Variant="Variant.Outlined">
+                                        <RadzenNumeric @bind-Value="model.DefaultExamDurationMinutes" Name="DefaultExamDuration" Min="1" Max="600" />
+                                        <RadzenRequiredValidator Component="DefaultExamDuration" Text="Duration required" />
+                                    </RadzenFormField>
+                                    <RadzenAlert AlertStyle="AlertStyle.Info" Icon="info" Style="margin-top:0.25rem;">
+                                        <RadzenText TextStyle="TextStyle.Caption">Applied automatically when creating new exams.</RadzenText>
+                                    </RadzenAlert>
+                                </RadzenStack>
+                            </RadzenFieldset>
+                        </RadzenColumn>
+
+                        <RadzenColumn Size="12" SizeMD="6">
+                            <RadzenFieldset Text="OpenAI Configuration" Style="min-height:100%;">
+                                <RadzenStack Gap="0.75rem">
+                                    <RadzenAlert AlertStyle="AlertStyle.Info" Icon="smart_toy">
+                                        <RadzenText TextStyle="TextStyle.Caption">Used for AI-generated questions. Key stored encrypted.</RadzenText>
+                                    </RadzenAlert>
+                                    <RadzenFormField Text="OpenAI API Key" Variant="Variant.Outlined">
+                                        <RadzenPassword @bind-Value="model.OpenAIApiKey" Name="OpenAIApiKey" Placeholder="sk-..." />
+                                        <RadzenRequiredValidator Component="OpenAIApiKey" Text="API key required for AI features" />
+                                    </RadzenFormField>
+                                    <RadzenStack Orientation="Orientation.Horizontal" Gap="0.75rem">
+                                        <RadzenButton Text="Test Connection" Icon="wifi" ButtonStyle="ButtonStyle.Info" Size="ButtonSize.Small" Click="@TestOpenAI" Disabled="@DisableOpenAiTest" IsBusy="@isTestingOpenAi" />
+                                        @if (openAiTestStatus != null)
+                                        {
+                                            <RadzenBadge Text="@openAiTestStatus" BadgeStyle="@openAiTestStyle" />
+                                        }
+                                    </RadzenStack>
+                                </RadzenStack>
+                            </RadzenFieldset>
+                        </RadzenColumn>
+
+                        <RadzenColumn Size="12" SizeMD="6">
+                            <RadzenFieldset Text="Email (SMTP) Configuration" Style="min-height:100%;">
+                                <RadzenStack Gap="0.75rem">
+                                    <RadzenAlert AlertStyle="AlertStyle.Info" Icon="email">
+                                        <RadzenText TextStyle="TextStyle.Caption">Used for welcome emails and notifications.</RadzenText>
+                                    </RadzenAlert>
+                                    <RadzenFormField Text="SMTP Server" Variant="Variant.Outlined">
+                                        <RadzenTextBox @bind-Value="model.EmailServer" Name="EmailServer" />
+                                        <RadzenRequiredValidator Component="EmailServer" Text="Server required" />
+                                    </RadzenFormField>
+                                    <RadzenFormField Text="SMTP Port" Variant="Variant.Outlined">
+                                        <RadzenNumeric @bind-Value="model.EmailPort" Name="EmailPort" Min="1" Max="65535" />
+                                        <RadzenRequiredValidator Component="EmailPort" Text="Port required" />
+                                    </RadzenFormField>
+                                    <RadzenFormField Text="Email Username" Variant="Variant.Outlined">
+                                        <RadzenTextBox @bind-Value="model.EmailUsername" Name="EmailUsername" />
+                                    </RadzenFormField>
+                                    <RadzenFormField Text="Email Password" Variant="Variant.Outlined">
+                                        <RadzenPassword @bind-Value="model.EmailPassword" Name="EmailPassword" />
+                                    </RadzenFormField>
+                                    <RadzenStack Orientation="Orientation.Horizontal" Gap="0.75rem">
+                                        <RadzenButton Text="Test SMTP" Icon="play_arrow" ButtonStyle="ButtonStyle.Info" Size="ButtonSize.Small" Click="@TestSmtp" Disabled="@DisableSmtpTest" IsBusy="@isTestingSmtp" />
+                                        @if (smtpTestStatus != null)
+                                        {
+                                            <RadzenBadge Text="@smtpTestStatus" BadgeStyle="@smtpTestStyle" />
+                                        }
+                                    </RadzenStack>
+                                </RadzenStack>
+                            </RadzenFieldset>
+                        </RadzenColumn>
+                    </RadzenRow>
+
+                    <RadzenStack Orientation="Orientation.Horizontal" Gap="0.75rem" JustifyContent="JustifyContent.SpaceBetween" Style="margin-top:0.5rem;">
+                        <RadzenButton Text="Reset" Icon="restore" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Medium" Click="@ResetDefaults" Disabled="@isSaving" />
+                        <RadzenButton Text="Save Settings" Icon="save" ButtonStyle="ButtonStyle.Primary" Size="ButtonSize.Medium" ButtonType="ButtonType.Submit" Disabled="@isSaving" IsBusy="@isSaving" />
+                    </RadzenStack>
+                </RadzenStack>
+            </RadzenTemplateForm>
+        </RadzenStack>
+    </RadzenCard>
+</RadzenStack>
+
+@code {
+    private SettingsModel model = new();
+    private bool isSaving;
+    private bool isTestingOpenAi;
+    private bool isTestingSmtp;
+    private string? openAiTestStatus;
+    private BadgeStyle openAiTestStyle = BadgeStyle.Info;
+    private string? smtpTestStatus;
+    private BadgeStyle smtpTestStyle = BadgeStyle.Info;
+
+    private bool DisableOpenAiTest => isTestingOpenAi || string.IsNullOrWhiteSpace(model.OpenAIApiKey);
+    private bool DisableSmtpTest => isTestingSmtp || !CanTestSmtp();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        var all = await Context.PlatformSettings.AsNoTracking().ToListAsync();
+        model.PlatformName = Get(all, "PlatformName", model.PlatformName);
+        model.Version = Get(all, "Version", model.Version);
+        model.CompanyName = Get(all, "Company", model.CompanyName);
+        model.Copyright = Get(all, "Copyright", model.Copyright);
+        model.OpenAIApiKey = Get(all, "OpenAIApiKey", "");
+        model.EmailServer = Get(all, "EmailServer", "");
+        model.EmailPort = int.TryParse(Get(all, "EmailPort", "587"), out var port) ? port : 587;
+        model.EmailUsername = Get(all, "EmailUsername", "");
+        model.EmailPassword = Get(all, "EmailPassword", "");
+        model.DefaultExamDurationMinutes = int.TryParse(Get(all, "DefaultExamDurationMinutes", "120"), out var dur) ? dur : 120;
+    }
+
+    private string Get(List<PlatformSetting> list, string key, string fallback) => list.FirstOrDefault(s => s.Key == key)?.Value ?? fallback;
+
+    private async Task OnSave()
+    {
+        isSaving = true;
+        openAiTestStatus = null; smtpTestStatus = null;
+        try
+        {
+            var dict = new Dictionary<string,string>
+            {
+                ["PlatformName"] = model.PlatformName,
+                ["Version"] = model.Version,
+                ["Company"] = model.CompanyName,
+                ["Copyright"] = model.Copyright,
+                ["OpenAIApiKey"] = model.OpenAIApiKey,
+                ["EmailServer"] = model.EmailServer,
+                ["EmailPort"] = model.EmailPort.ToString(),
+                ["EmailUsername"] = model.EmailUsername,
+                ["EmailPassword"] = model.EmailPassword,
+                ["DefaultExamDurationMinutes"] = model.DefaultExamDurationMinutes.ToString()
+            };
+            foreach (var kv in dict)
+            {
+                var setting = await Context.PlatformSettings.FirstOrDefaultAsync(s => s.Key == kv.Key);
+                if (setting == null)
+                {
+                    Context.PlatformSettings.Add(new PlatformSetting { Key = kv.Key, Value = kv.Value, LastModified = DateTime.UtcNow });
+                }
+                else
+                {
+                    setting.Value = kv.Value;
+                    setting.LastModified = DateTime.UtcNow;
+                }
+            }
+            await Context.SaveChangesAsync();
+            NotificationService.Notify(NotificationSeverity.Success, "Saved", "Settings saved successfully.");
+        }
+        catch (Exception ex)
+        {
+            NotificationService.Notify(NotificationSeverity.Error, "Error", ex.Message);
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private async Task TestOpenAI()
+    {
+        if (string.IsNullOrWhiteSpace(model.OpenAIApiKey)) return;
+        isTestingOpenAi = true;
+        openAiTestStatus = null;
+        openAiTestStyle = BadgeStyle.Info;
+        try
+        {
+            using var http = new HttpClient();
+            http.DefaultRequestHeaders.Add("Authorization", $"Bearer {model.OpenAIApiKey}");
+            http.Timeout = TimeSpan.FromSeconds(10);
+            var resp = await http.GetAsync("https://api.openai.com/v1/models");
+            if (resp.IsSuccessStatusCode)
+            {
+                openAiTestStatus = "OK";
+                openAiTestStyle = BadgeStyle.Success;
+                NotificationService.Notify(NotificationSeverity.Success, "OpenAI", "Connection successful.");
+            }
+            else
+            {
+                openAiTestStatus = "Failed";
+                openAiTestStyle = BadgeStyle.Danger;
+                NotificationService.Notify(NotificationSeverity.Error, "OpenAI", $"Status: {(int)resp.StatusCode}");
+            }
+        }
+        catch (Exception ex)
+        {
+            openAiTestStatus = "Error";
+            openAiTestStyle = BadgeStyle.Danger;
+            NotificationService.Notify(NotificationSeverity.Error, "OpenAI", ex.Message);
+        }
+        finally
+        {
+            isTestingOpenAi = false;
+        }
+    }
+
+    private bool CanTestSmtp() => !string.IsNullOrWhiteSpace(model.EmailServer) && model.EmailPort > 0 && !string.IsNullOrWhiteSpace(model.EmailUsername) && !string.IsNullOrWhiteSpace(model.EmailPassword);
+
+    private async Task TestSmtp()
+    {
+        if (!CanTestSmtp()) return;
+        isTestingSmtp = true;
+        smtpTestStatus = null;
+        smtpTestStyle = BadgeStyle.Info;
+        try
+        {
+            using var client = new System.Net.Mail.SmtpClient(model.EmailServer, model.EmailPort)
+            {
+                EnableSsl = true,
+                Credentials = new System.Net.NetworkCredential(model.EmailUsername, model.EmailPassword)
+            };
+            var mail = new System.Net.Mail.MailMessage(model.EmailUsername, model.EmailUsername, "SMTP Test", "Test message from PeP settings page");
+            await client.SendMailAsync(mail);
+            smtpTestStatus = "OK";
+            smtpTestStyle = BadgeStyle.Success;
+            NotificationService.Notify(NotificationSeverity.Success, "SMTP", "Test email sent successfully.");
+        }
+        catch (Exception ex)
+        {
+            smtpTestStatus = "Failed";
+            smtpTestStyle = BadgeStyle.Danger;
+            NotificationService.Notify(NotificationSeverity.Error, "SMTP", ex.Message);
+        }
+        finally
+        {
+            isTestingSmtp = false;
+        }
+    }
+
+    private async Task ResetDefaults()
+    {
+        var confirm = await DialogService.Confirm("Reset all settings to defaults?", "Confirm Reset", new ConfirmOptions { OkButtonText = "Yes", CancelButtonText = "No" });
+        if (confirm == true)
+        {
+            model = new SettingsModel();
+            openAiTestStatus = null; smtpTestStatus = null;
+            NotificationService.Notify(NotificationSeverity.Info, "Reset", "Defaults restored. Click Save to apply.");
+        }
+    }
+
+    private class SettingsModel
+    {
+        public string PlatformName { get; set; } = "PeP - Programming Examination Platform";
+        public string Version { get; set; } = "5.0";
+        public string CompanyName { get; set; } = "Infinity Atom";
+        public string Copyright { get; set; } = "Copyright 2021 - 2025";
+        public string OpenAIApiKey { get; set; } = string.Empty;
+        public string EmailServer { get; set; } = string.Empty;
+        public int EmailPort { get; set; } = 587;
+        public string EmailUsername { get; set; } = string.Empty;
+        public string EmailPassword { get; set; } = string.Empty;
+        public int DefaultExamDurationMinutes { get; set; } = 120;
+    }
+}
