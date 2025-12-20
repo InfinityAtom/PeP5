@@ -114,11 +114,37 @@ public partial class NetworkPanel : UserControl
 
         try
         {
+            // Use Windows Native WiFi API via PowerShell to trigger a scan
+            // This is more reliable than netsh wlan scan which doesn't exist
+            try
+            {
+                var scanProcess = new ProcessStartInfo
+                {
+                    FileName = "powershell",
+                    Arguments = "-Command \"(Get-NetAdapter -Name 'Wi-Fi*' | ForEach-Object { $_.Name })\"",
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                };
+                
+                using (var scan = Process.Start(scanProcess))
+                {
+                    if (scan != null) 
+                    {
+                        var cts = new CancellationTokenSource(2000);
+                        try { await scan.WaitForExitAsync(cts.Token); } catch { }
+                    }
+                }
+            }
+            catch { /* Ignore scan errors */ }
+            
+            // Small delay to allow network list to update
+            await Task.Delay(500);
+
             // Run netsh command to list available WiFi networks
             var processInfo = new ProcessStartInfo
             {
                 FileName = "netsh",
-                Arguments = "wlan show networks mode=bssid",
+                Arguments = "wlan show networks",
                 RedirectStandardOutput = true,
                 UseShellExecute = false,
                 CreateNoWindow = true
@@ -129,6 +155,8 @@ public partial class NetworkPanel : UserControl
 
             var output = await process.StandardOutput.ReadToEndAsync();
             await process.WaitForExitAsync();
+            
+            Debug.WriteLine($"netsh output:\n{output}");
 
             // Parse the output
             var lines = output.Split('\n');
@@ -138,35 +166,38 @@ public partial class NetworkPanel : UserControl
             {
                 var trimmedLine = line.Trim();
 
-                if (trimmedLine.StartsWith("SSID") && !trimmedLine.StartsWith("SSID ") && trimmedLine.Contains(":"))
+                // Match "SSID 1 : NetworkName" or "SSID : NetworkName"
+                if (trimmedLine.StartsWith("SSID", StringComparison.OrdinalIgnoreCase) && 
+                    trimmedLine.Contains(":") &&
+                    !trimmedLine.StartsWith("BSSID", StringComparison.OrdinalIgnoreCase))
                 {
-                    // New network entry - "SSID 1 : NetworkName"
-                    var ssidMatch = Regex.Match(trimmedLine, @"SSID\s*\d*\s*:\s*(.+)");
-                    if (ssidMatch.Success)
+                    var colonIndex = trimmedLine.IndexOf(':');
+                    if (colonIndex > 0 && colonIndex < trimmedLine.Length - 1)
                     {
-                        var ssid = ssidMatch.Groups[1].Value.Trim();
+                        var ssid = trimmedLine.Substring(colonIndex + 1).Trim();
                         if (!string.IsNullOrWhiteSpace(ssid) && !networks.Any(n => n.Name == ssid))
                         {
                             currentNetwork = new WiFiNetwork { Name = ssid };
                             networks.Add(currentNetwork);
+                            Debug.WriteLine($"Found network: {ssid}");
+                        }
+                        else if (string.IsNullOrWhiteSpace(ssid))
+                        {
+                            // Hidden network - skip
+                            currentNetwork = null;
                         }
                     }
                 }
                 else if (currentNetwork != null)
                 {
-                    if (trimmedLine.StartsWith("Network type", StringComparison.OrdinalIgnoreCase) ||
-                        trimmedLine.StartsWith("Tipo de red", StringComparison.OrdinalIgnoreCase))
+                    if (trimmedLine.StartsWith("Authentication", StringComparison.OrdinalIgnoreCase) ||
+                        trimmedLine.StartsWith("Autenticación", StringComparison.OrdinalIgnoreCase) ||
+                        trimmedLine.StartsWith("Autenticaci", StringComparison.OrdinalIgnoreCase))
                     {
-                        // Network type
-                    }
-                    else if (trimmedLine.StartsWith("Authentication", StringComparison.OrdinalIgnoreCase) ||
-                             trimmedLine.StartsWith("Autenticación", StringComparison.OrdinalIgnoreCase) ||
-                             trimmedLine.StartsWith("Autenticaci", StringComparison.OrdinalIgnoreCase))
-                    {
-                        var authMatch = Regex.Match(trimmedLine, @":\s*(.+)");
-                        if (authMatch.Success)
+                        var colonIndex = trimmedLine.IndexOf(':');
+                        if (colonIndex > 0)
                         {
-                            var auth = authMatch.Groups[1].Value.Trim();
+                            var auth = trimmedLine.Substring(colonIndex + 1).Trim();
                             currentNetwork.SecurityType = auth;
                             currentNetwork.IsSecured = !auth.Equals("Open", StringComparison.OrdinalIgnoreCase) &&
                                                        !auth.Equals("Abierta", StringComparison.OrdinalIgnoreCase);
@@ -185,6 +216,12 @@ public partial class NetworkPanel : UserControl
                     }
                 }
             }
+            
+            // If no signal info was found (using show networks without mode=bssid), get it separately
+            if (networks.Any(n => n.SignalStrengthPercent == 0))
+            {
+                await UpdateSignalStrengthsAsync(networks);
+            }
 
             // Sort by signal strength
             networks.Sort((a, b) => b.SignalStrengthPercent.CompareTo(a.SignalStrengthPercent));
@@ -195,6 +232,66 @@ public partial class NetworkPanel : UserControl
         }
 
         return networks;
+    }
+
+    private async Task UpdateSignalStrengthsAsync(List<WiFiNetwork> networks)
+    {
+        try
+        {
+            var processInfo = new ProcessStartInfo
+            {
+                FileName = "netsh",
+                Arguments = "wlan show networks mode=bssid",
+                RedirectStandardOutput = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+
+            using var process = Process.Start(processInfo);
+            if (process == null) return;
+
+            var output = await process.StandardOutput.ReadToEndAsync();
+            await process.WaitForExitAsync();
+
+            var lines = output.Split('\n');
+            string? currentSsid = null;
+
+            foreach (var line in lines)
+            {
+                var trimmedLine = line.Trim();
+
+                if (trimmedLine.StartsWith("SSID", StringComparison.OrdinalIgnoreCase) && 
+                    trimmedLine.Contains(":") &&
+                    !trimmedLine.StartsWith("BSSID", StringComparison.OrdinalIgnoreCase))
+                {
+                    var colonIndex = trimmedLine.IndexOf(':');
+                    if (colonIndex > 0)
+                    {
+                        currentSsid = trimmedLine.Substring(colonIndex + 1).Trim();
+                    }
+                }
+                else if (!string.IsNullOrEmpty(currentSsid) && 
+                         (trimmedLine.StartsWith("Signal", StringComparison.OrdinalIgnoreCase) ||
+                          trimmedLine.StartsWith("Señal", StringComparison.OrdinalIgnoreCase)))
+                {
+                    var signalMatch = Regex.Match(trimmedLine, @"(\d+)%");
+                    if (signalMatch.Success && int.TryParse(signalMatch.Groups[1].Value, out int signal))
+                    {
+                        var network = networks.FirstOrDefault(n => n.Name == currentSsid);
+                        if (network != null && network.SignalStrengthPercent == 0)
+                        {
+                            network.SignalStrengthPercent = signal;
+                            network.SignalStrength = $"{signal}%";
+                            network.SignalIcon = GetSignalIcon(signal);
+                        }
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"Error updating signal strengths: {ex.Message}");
+        }
     }
 
     private static string GetSignalIcon(int signalStrength)
@@ -467,9 +564,15 @@ public partial class NetworkPanel : UserControl
     {
         try
         {
+            // Check for real Ethernet adapters (exclude virtual adapters like VMware, VirtualBox, Hyper-V)
             var ethernetConnected = NetworkInterface.GetAllNetworkInterfaces()
                 .Any(ni => ni.NetworkInterfaceType == NetworkInterfaceType.Ethernet &&
-                          ni.OperationalStatus == OperationalStatus.Up);
+                          ni.OperationalStatus == OperationalStatus.Up &&
+                          !ni.Description.Contains("VMware", StringComparison.OrdinalIgnoreCase) &&
+                          !ni.Description.Contains("VirtualBox", StringComparison.OrdinalIgnoreCase) &&
+                          !ni.Description.Contains("Hyper-V", StringComparison.OrdinalIgnoreCase) &&
+                          !ni.Description.Contains("Virtual", StringComparison.OrdinalIgnoreCase) &&
+                          !ni.Name.Contains("vEthernet", StringComparison.OrdinalIgnoreCase));
 
             if (ethernetConnected)
             {

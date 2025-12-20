@@ -129,13 +129,13 @@
 #### Network Settings Panel
 | Feature | Description |
 |---------|-------------|
-| 📶 **Available Networks** | Lists nearby WiFi networks with signal strength |
+| 📶 **Available Networks** | Lists all nearby WiFi networks with signal strength |
 | 🔒 **Secure Networks** | Shows lock icon for password-protected networks |
 | 🔐 **WiFi Password** | Enter password to connect to secured networks |
 | 🔄 **Refresh** | Scan for new available networks |
 | ⚡ **Current Connection** | Shows connected network name and status |
 | 🔌 **Disconnect** | Disconnect from current WiFi network |
-| 🔌 **Ethernet Status** | Shows Ethernet cable connection status |
+| 🔌 **Ethernet Status** | Shows real Ethernet connection (excludes virtual adapters) |
 
 ---
 
