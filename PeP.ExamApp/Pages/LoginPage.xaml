@@ -1,0 +1,77 @@
+<Page x:Class="PeP.ExamApp.Pages.LoginPage"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+      xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+      mc:Ignorable="d"
+      Title="Sign In"
+      Background="{StaticResource BackgroundBrush}">
+
+    <Grid VerticalAlignment="Center" HorizontalAlignment="Center">
+        <Border Style="{StaticResource CardStyle}" MaxWidth="480" Margin="40">
+            <StackPanel>
+                <!-- Header -->
+                <TextBlock Text="👤" FontSize="48" TextAlignment="Center" Margin="0,0,0,16"/>
+                <TextBlock Text="Student Sign In" 
+                           Style="{StaticResource SubheadingStyle}"
+                           TextAlignment="Center"/>
+                <TextBlock Text="Enter your credentials to access the exam" 
+                           Style="{StaticResource BodyStyle}"
+                           TextAlignment="Center"
+                           Margin="0,8,0,32"/>
+
+                <!-- Email Input -->
+                <TextBlock Text="Email Address" Style="{StaticResource LabelStyle}"/>
+                <TextBox x:Name="EmailTextBox" 
+                         Style="{StaticResource ModernTextBoxStyle}"/>
+
+                <!-- Password Input -->
+                <TextBlock Text="Password" Style="{StaticResource LabelStyle}" Margin="0,16,0,6"/>
+                <PasswordBox x:Name="PasswordBox" 
+                             Style="{StaticResource ModernPasswordBoxStyle}"/>
+
+                <!-- Status Messages -->
+                <TextBlock x:Name="StatusText" 
+                           Style="{StaticResource BodyStyle}"
+                           Foreground="{StaticResource PrimaryBrush}"
+                           Margin="0,16,0,0"
+                           TextAlignment="Center"/>
+
+                <!-- Error Message -->
+                <Border x:Name="ErrorBorder" 
+                        Background="#FEF2F2" 
+                        BorderBrush="#FECACA" 
+                        BorderThickness="1" 
+                        CornerRadius="8" 
+                        Padding="12"
+                        Margin="0,8,0,0"
+                        Visibility="Collapsed">
+                    <TextBlock x:Name="ErrorText" 
+                               Foreground="#DC2626" 
+                               TextWrapping="Wrap"
+                               FontSize="13"/>
+                </Border>
+
+                <!-- Buttons -->
+                <Grid Margin="0,24,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <Button Content="← Back" 
+                            Style="{StaticResource SecondaryButtonStyle}"
+                            Grid.Column="0"
+                            Click="OnBackClick"/>
+                    <Button x:Name="SignInButton" 
+                            Content="Sign In" 
+                            Style="{StaticResource PrimaryButtonStyle}"
+                            Grid.Column="1"
+                            Margin="12,0,0,0"
+                            Click="OnSignInClick"/>
+                </Grid>
+            </StackPanel>
+        </Border>
+    </Grid>
+</Page>
+

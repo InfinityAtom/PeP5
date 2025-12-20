@@ -465,13 +465,16 @@ namespace PeP.Services
 
         public async Task<decimal> CalculateScoreAsync(ExamAttempt examAttempt)
         {
-            decimal totalScore = 0;
+            decimal totalPointsEarned = 0;
+            decimal totalPointsPossible = 0;
 
             foreach (var studentAnswer in examAttempt.StudentAnswers)
             {
+                var question = studentAnswer.Question;
+                totalPointsPossible += question.Points;
+
                 if (!studentAnswer.IsCompleted) continue;
 
-                var question = studentAnswer.Question;
                 var correctChoices = question.Choices.Where(c => c.IsCorrect).ToList();
                 var selectedChoiceIds = GetSelectedChoiceIds(studentAnswer);
 
@@ -510,10 +513,11 @@ namespace PeP.Services
                 }
 
                 studentAnswer.PointsEarned = pointsEarned;
-                totalScore += pointsEarned;
+                totalPointsEarned += pointsEarned;
             }
 
-            return totalScore;
+            // Return percentage (0-100) instead of raw points
+            return totalPointsPossible > 0 ? (totalPointsEarned / totalPointsPossible) * 100 : 0;
         }
 
         public async Task<string> GenerateExamCodeAsync(int examId, DateTime expiresAt, int? maxUses, string createdByUserId, string? description)

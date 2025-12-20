@@ -1,0 +1,272 @@
+<Page x:Class="PeP.ExamApp.Pages.AntiCheatPage"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+      xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+      mc:Ignorable="d"
+      Title="Security Check"
+      Background="{StaticResource BackgroundBrush}">
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <Border Grid.Row="0" 
+                Background="{StaticResource HeaderGradientBrush}" 
+                Padding="40,32">
+            <StackPanel HorizontalAlignment="Center" MaxWidth="800">
+                <TextBlock Text="🛡️" FontSize="48" TextAlignment="Center" Margin="0,0,0,16"/>
+                <TextBlock Text="Security Environment Check" 
+                           FontSize="28" 
+                           FontWeight="Bold" 
+                           Foreground="White"
+                           TextAlignment="Center"/>
+                <TextBlock Text="Your system must pass all security checks before launching the exam. This ensures exam integrity and prevents cheating."
+                           Foreground="#CBD5E1"
+                           FontSize="14"
+                           TextAlignment="Center"
+                           TextWrapping="Wrap"
+                           Margin="0,8,0,0"
+                           MaxWidth="600"/>
+            </StackPanel>
+        </Border>
+
+        <!-- Security Checks List -->
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Padding="40,24">
+            <StackPanel MaxWidth="700" HorizontalAlignment="Center">
+                
+                <!-- Status Summary -->
+                <Border x:Name="StatusSummaryBorder" 
+                        CornerRadius="12" 
+                        Padding="20" 
+                        Margin="0,0,0,24">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock x:Name="StatusIcon" FontSize="32" VerticalAlignment="Center" Margin="0,0,16,0"/>
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                            <TextBlock x:Name="StatusTitle" FontSize="18" FontWeight="SemiBold"/>
+                            <TextBlock x:Name="StatusDescription" 
+                                       Style="{StaticResource BodyStyle}" 
+                                       Margin="0,4,0,0"/>
+                        </StackPanel>
+                    </Grid>
+                </Border>
+
+                <!-- Security Check Items -->
+                <TextBlock Text="Security Checks" 
+                           Style="{StaticResource LabelStyle}"
+                           FontSize="16"
+                           Margin="0,0,0,16"/>
+
+                <!-- Administrator Check -->
+                <Border x:Name="AdminCheckBorder" Style="{StaticResource CheckItemPassedStyle}">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock x:Name="AdminIcon" Text="✓" FontSize="18" FontWeight="Bold" 
+                                   VerticalAlignment="Center" Margin="0,0,12,0"/>
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                            <TextBlock Text="Administrator Privileges" FontWeight="SemiBold" FontSize="14"/>
+                            <TextBlock Text="Application is running with elevated permissions" 
+                                       Style="{StaticResource BodyStyle}" FontSize="12" Margin="0,2,0,0"/>
+                        </StackPanel>
+                        <TextBlock x:Name="AdminStatus" Grid.Column="2" FontWeight="SemiBold" 
+                                   VerticalAlignment="Center"/>
+                    </Grid>
+                </Border>
+
+                <!-- Single Monitor Check -->
+                <Border x:Name="MonitorCheckBorder" Style="{StaticResource CheckItemPassedStyle}">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock x:Name="MonitorIcon" Text="✓" FontSize="18" FontWeight="Bold" 
+                                   VerticalAlignment="Center" Margin="0,0,12,0"/>
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                            <TextBlock Text="Single Display" FontWeight="SemiBold" FontSize="14"/>
+                            <TextBlock Text="Only one monitor is connected" 
+                                       Style="{StaticResource BodyStyle}" FontSize="12" Margin="0,2,0,0"/>
+                        </StackPanel>
+                        <TextBlock x:Name="MonitorStatus" Grid.Column="2" FontWeight="SemiBold" 
+                                   VerticalAlignment="Center"/>
+                    </Grid>
+                </Border>
+
+                <!-- Remote Session Check -->
+                <Border x:Name="RemoteCheckBorder" Style="{StaticResource CheckItemPassedStyle}">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock x:Name="RemoteIcon" Text="✓" FontSize="18" FontWeight="Bold" 
+                                   VerticalAlignment="Center" Margin="0,0,12,0"/>
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                            <TextBlock Text="Local Session" FontWeight="SemiBold" FontSize="14"/>
+                            <TextBlock Text="Not running via Remote Desktop" 
+                                       Style="{StaticResource BodyStyle}" FontSize="12" Margin="0,2,0,0"/>
+                        </StackPanel>
+                        <TextBlock x:Name="RemoteStatus" Grid.Column="2" FontWeight="SemiBold" 
+                                   VerticalAlignment="Center"/>
+                    </Grid>
+                </Border>
+
+                <!-- Virtual Machine Check -->
+                <Border x:Name="VmCheckBorder" Style="{StaticResource CheckItemPassedStyle}">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock x:Name="VmIcon" Text="✓" FontSize="18" FontWeight="Bold" 
+                                   VerticalAlignment="Center" Margin="0,0,12,0"/>
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                            <TextBlock Text="Physical Machine" FontWeight="SemiBold" FontSize="14"/>
+                            <TextBlock Text="Not running in a virtual machine" 
+                                       Style="{StaticResource BodyStyle}" FontSize="12" Margin="0,2,0,0"/>
+                        </StackPanel>
+                        <TextBlock x:Name="VmStatus" Grid.Column="2" FontWeight="SemiBold" 
+                                   VerticalAlignment="Center"/>
+                    </Grid>
+                </Border>
+
+                <!-- Debugger Check -->
+                <Border x:Name="DebuggerCheckBorder" Style="{StaticResource CheckItemPassedStyle}">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock x:Name="DebuggerIcon" Text="✓" FontSize="18" FontWeight="Bold" 
+                                   VerticalAlignment="Center" Margin="0,0,12,0"/>
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                            <TextBlock Text="No Debugger Attached" FontWeight="SemiBold" FontSize="14"/>
+                            <TextBlock Text="Application is not being debugged" 
+                                       Style="{StaticResource BodyStyle}" FontSize="12" Margin="0,2,0,0"/>
+                        </StackPanel>
+                        <TextBlock x:Name="DebuggerStatus" Grid.Column="2" FontWeight="SemiBold" 
+                                   VerticalAlignment="Center"/>
+                    </Grid>
+                </Border>
+
+                <!-- Blacklisted Processes Check -->
+                <Border x:Name="ProcessCheckBorder" Style="{StaticResource CheckItemPassedStyle}">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock x:Name="ProcessIcon" Text="✓" FontSize="18" FontWeight="Bold" 
+                                   VerticalAlignment="Center" Margin="0,0,12,0"/>
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                            <TextBlock Text="No Forbidden Applications" FontWeight="SemiBold" FontSize="14"/>
+                            <TextBlock x:Name="ProcessDescription" 
+                                       Text="No screen recording, remote access, or cheat tools detected" 
+                                       Style="{StaticResource BodyStyle}" FontSize="12" Margin="0,2,0,0"
+                                       TextWrapping="Wrap"/>
+                        </StackPanel>
+                        <Button x:Name="CloseAppsButton" 
+                                Content="Close All" 
+                                Style="{StaticResource DangerButtonStyle}"
+                                Grid.Column="2"
+                                Margin="8,0"
+                                Padding="12,6"
+                                FontSize="12"
+                                Visibility="Collapsed"
+                                Click="OnCloseAppsClick"/>
+                        <TextBlock x:Name="ProcessStatus" Grid.Column="3" FontWeight="SemiBold" 
+                                   VerticalAlignment="Center"/>
+                    </Grid>
+                </Border>
+
+                <!-- Screen Recording Check -->
+                <Border x:Name="RecordingCheckBorder" Style="{StaticResource CheckItemPassedStyle}">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock x:Name="RecordingIcon" Text="✓" FontSize="18" FontWeight="Bold" 
+                                   VerticalAlignment="Center" Margin="0,0,12,0"/>
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                            <TextBlock Text="No Screen Recording" FontWeight="SemiBold" FontSize="14"/>
+                            <TextBlock Text="Screen capture software is not active" 
+                                       Style="{StaticResource BodyStyle}" FontSize="12" Margin="0,2,0,0"/>
+                        </StackPanel>
+                        <TextBlock x:Name="RecordingStatus" Grid.Column="2" FontWeight="SemiBold" 
+                                   VerticalAlignment="Center"/>
+                    </Grid>
+                </Border>
+
+                <!-- Warning Note -->
+                <Border Background="#FEF3C7" BorderBrush="#FCD34D" BorderThickness="1" 
+                        CornerRadius="8" Padding="16" Margin="0,16,0,0">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="⚠️" FontSize="20" VerticalAlignment="Top" Margin="0,0,12,0"/>
+                        <TextBlock Grid.Column="1" TextWrapping="Wrap" Foreground="#92400E" FontSize="13">
+                            <Run FontWeight="SemiBold">Important:</Run>
+                            <Run>Once the exam starts, switching applications, taking screenshots, or using keyboard shortcuts will be blocked. Any detected violations may be reported to your instructor.</Run>
+                        </TextBlock>
+                    </Grid>
+                </Border>
+
+            </StackPanel>
+        </ScrollViewer>
+
+        <!-- Footer with Buttons -->
+        <Border Grid.Row="2" Background="{StaticResource SurfaceBrush}" 
+                BorderBrush="{StaticResource BorderBrush}" 
+                BorderThickness="0,1,0,0"
+                Padding="40,20">
+            <Grid MaxWidth="700" HorizontalAlignment="Center">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <Button Content="← Back" 
+                        Style="{StaticResource SecondaryButtonStyle}"
+                        Grid.Column="0"
+                        Click="OnBackClick"/>
+
+                <Button Content="🔄 Re-check" 
+                        Style="{StaticResource SecondaryButtonStyle}"
+                        Grid.Column="2"
+                        Margin="0,0,12,0"
+                        Click="OnRecheckClick"/>
+
+                <Button x:Name="LaunchButton" 
+                        Content="🚀 Launch Secure Exam" 
+                        Style="{StaticResource SuccessButtonStyle}"
+                        Grid.Column="3"
+                        Click="OnLaunchClick"/>
+            </Grid>
+        </Border>
+    </Grid>
+</Page>
+

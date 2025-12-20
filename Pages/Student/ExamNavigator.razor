@@ -1,7 +1,9 @@
 @page "/student/exam-navigator/{AttemptId:int}"
+@layout ExamLayout
 @using Microsoft.AspNetCore.Components.Authorization
 @attribute [Authorize(Roles = UserRoles.Student)]
 @inject IExamService ExamService
+@inject IExamAppService ExamAppService
 @inject AuthenticationStateProvider AuthenticationStateProvider
 @inject UserManager<ApplicationUser> UserManager
 @inject NavigationManager Navigation
@@ -12,7 +14,7 @@
 <RadzenStack Gap="1rem">
     <RadzenBreadCrumb>
         <RadzenBreadCrumbItem Path="/" Text="Home" />
-        <RadzenBreadCrumbItem Path="/student/take-exam" Text="Current Exam" />
+        <RadzenBreadCrumbItem Path="@ExamPath" Text="Current Exam" />
         <RadzenBreadCrumbItem Text="Navigator" />
     </RadzenBreadCrumb>
 
@@ -25,12 +27,19 @@
             </RadzenStack>
         </RadzenCard>
     }
+    else if (!string.IsNullOrWhiteSpace(accessError))
+    {
+        <RadzenAlert AlertStyle="AlertStyle.Danger" Icon="error" Closeable="false">
+            @accessError
+        </RadzenAlert>
+        <RadzenButton Text="Back to Exam" Icon="arrow_back" ButtonStyle="ButtonStyle.Primary" Click="@NavigateBackToExam" />
+    }
     else if (currentExam == null || attempt == null)
     {
         <RadzenAlert AlertStyle="AlertStyle.Danger" Icon="error" Closeable="false">
             Unable to load this exam. Please return to your exam and try again.
         </RadzenAlert>
-        <RadzenButton Text="Back to Exam" Icon="arrow_back" ButtonStyle="ButtonStyle.Primary" Click="@(() => Navigation.NavigateTo("/student/take-exam"))" />
+        <RadzenButton Text="Back to Exam" Icon="arrow_back" ButtonStyle="ButtonStyle.Primary" Click="@NavigateBackToExam" />
     }
     else
     {
@@ -114,6 +123,7 @@
 @code {
     [Parameter] public int AttemptId { get; set; }
     [Parameter, SupplyParameterFromQuery(Name = "questionIndex")] public int? QuestionIndex { get; set; }
+    [Parameter, SupplyParameterFromQuery(Name = "launchToken")] public string? LaunchToken { get; set; }
 
     private ExamAttempt? attempt;
     private Exam? currentExam;
@@ -123,6 +133,13 @@
     private int currentQuestionIndex;
     private List<NavigatorItem> navigatorItems = new();
     private string? currentUserId;
+    private string? activeLaunchToken;
+    private string? accessError;
+
+    private string ExamPath =>
+        string.IsNullOrWhiteSpace(activeLaunchToken)
+            ? "/student/take-exam"
+            : $"/student/take-exam?attemptId={AttemptId}&launchToken={Uri.EscapeDataString(activeLaunchToken)}";
 
     protected override async Task OnInitializedAsync()
     {
@@ -139,6 +156,7 @@
     {
         isLoading = true;
         navigatorItems.Clear();
+        accessError = null;
 
         try
         {
@@ -147,6 +165,21 @@
                 NotificationService.Notify(NotificationSeverity.Error, "Error", "User not identified.");
                 return;
             }
+
+            if (string.IsNullOrWhiteSpace(LaunchToken))
+            {
+                accessError = "This exam can only be accessed from the PeP Exam App.";
+                return;
+            }
+
+            var isValid = await ExamAppService.ValidateLaunchTokenAsync(AttemptId, currentUserId, LaunchToken);
+            if (!isValid)
+            {
+                accessError = "This exam session is not authorized or has expired. Please relaunch from the PeP Exam App.";
+                return;
+            }
+
+            activeLaunchToken = LaunchToken;
 
             attempt = await ExamService.GetExamAttemptDetailsAsync(AttemptId, currentUserId);
             if (attempt == null)
@@ -191,12 +224,26 @@
 
     private void NavigateToQuestion(int index)
     {
-        Navigation.NavigateTo($"/student/take-exam?attemptId={AttemptId}&questionIndex={index}");
+        var token = Uri.EscapeDataString(activeLaunchToken ?? LaunchToken ?? string.Empty);
+        Navigation.NavigateTo($"/student/take-exam?attemptId={AttemptId}&questionIndex={index}&launchToken={token}");
     }
 
     private void SubmitAndFinish()
     {
-        Navigation.NavigateTo($"/student/take-exam?attemptId={AttemptId}&questionIndex={currentQuestionIndex}&submit=true");
+        var token = Uri.EscapeDataString(activeLaunchToken ?? LaunchToken ?? string.Empty);
+        Navigation.NavigateTo($"/student/take-exam?attemptId={AttemptId}&questionIndex={currentQuestionIndex}&submit=true&launchToken={token}");
+    }
+
+    private void NavigateBackToExam()
+    {
+        var token = Uri.EscapeDataString(activeLaunchToken ?? LaunchToken ?? string.Empty);
+        if (string.IsNullOrWhiteSpace(token))
+        {
+            Navigation.NavigateTo("/student/take-exam");
+            return;
+        }
+
+        Navigation.NavigateTo($"/student/take-exam?attemptId={AttemptId}&questionIndex={QuestionIndex ?? currentQuestionIndex}&launchToken={token}");
     }
 
     private class NavigatorItem

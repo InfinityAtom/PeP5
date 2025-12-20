@@ -48,7 +48,7 @@
                     <RadzenStack Gap="0.35rem" AlignItems="AlignItems.End">
                         <RadzenText TextStyle="TextStyle.Body2" class="text-muted">Score</RadzenText>
                         <RadzenText TextStyle="TextStyle.H4">
-                            @($"{examAttempt.TotalScore:F1} / {maxScore:F1} ({scorePercent:F1}%)")
+                            @($"{pointsEarned:F1} / {maxScore:F1} ({examAttempt.TotalScore:F1}%)")
                         </RadzenText>
                     </RadzenStack>
                 </RadzenStack>
@@ -151,7 +151,7 @@
     private ExamAttempt? examAttempt;
     private bool isLoading = true;
     private decimal maxScore;
-    private decimal scorePercent;
+    private decimal pointsEarned;
     private TimeSpan duration = TimeSpan.Zero;
 
     protected override async Task OnParametersSetAsync()
@@ -176,7 +176,7 @@
                     if (examAttempt != null)
                     {
                         maxScore = examAttempt.StudentAnswers.Sum(sa => sa.Question.Points);
-                        scorePercent = maxScore > 0 ? (examAttempt.TotalScore / maxScore) * 100 : 0;
+                        pointsEarned = examAttempt.StudentAnswers.Sum(sa => sa.PointsEarned);
                         var submitted = examAttempt.SubmittedAt ?? examAttempt.StartedAt;
                         duration = submitted - examAttempt.StartedAt;
                     }

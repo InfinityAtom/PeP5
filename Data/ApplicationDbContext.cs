@@ -17,6 +17,8 @@ namespace PeP.Data
         public DbSet<ExamAttempt> ExamAttempts { get; set; }
         public DbSet<StudentAnswer> StudentAnswers { get; set; }
         public DbSet<ExamCode> ExamCodes { get; set; }
+        public DbSet<ExamAppAuthorization> ExamAppAuthorizations { get; set; }
+        public DbSet<ExamAppLaunchSession> ExamAppLaunchSessions { get; set; }
         public DbSet<PlatformSetting> PlatformSettings { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -90,6 +92,30 @@ namespace PeP.Data
                 .HasForeignKey(ec => ec.CreatedByUserId)
                 .OnDelete(DeleteBehavior.Restrict);
 
+            modelBuilder.Entity<ExamAppAuthorization>()
+                .HasOne(a => a.Student)
+                .WithMany()
+                .HasForeignKey(a => a.StudentId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<ExamAppAuthorization>()
+                .HasOne(a => a.ExamCode)
+                .WithMany()
+                .HasForeignKey(a => a.ExamCodeId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<ExamAppLaunchSession>()
+                .HasOne(s => s.Student)
+                .WithMany()
+                .HasForeignKey(s => s.StudentId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<ExamAppLaunchSession>()
+                .HasOne(s => s.ExamAttempt)
+                .WithMany()
+                .HasForeignKey(s => s.ExamAttemptId)
+                .OnDelete(DeleteBehavior.Cascade);
+
             // Configure decimal precision
             modelBuilder.Entity<Exam>()
                 .Property(e => e.TotalPoints)
@@ -114,6 +140,20 @@ namespace PeP.Data
 
             modelBuilder.Entity<ExamCode>()
                 .HasIndex(ec => new { ec.Code, ec.ExpiresAt });
+
+            modelBuilder.Entity<ExamAppAuthorization>()
+                .HasIndex(a => a.TokenHash)
+                .IsUnique();
+
+            modelBuilder.Entity<ExamAppAuthorization>()
+                .HasIndex(a => new { a.StudentId, a.ExpiresAt });
+
+            modelBuilder.Entity<ExamAppLaunchSession>()
+                .HasIndex(s => s.TokenHash)
+                .IsUnique();
+
+            modelBuilder.Entity<ExamAppLaunchSession>()
+                .HasIndex(s => new { s.ExamAttemptId, s.ExpiresAt });
 
             // Seed default platform settings
             modelBuilder.Entity<PlatformSetting>().HasData(

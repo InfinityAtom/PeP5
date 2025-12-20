@@ -1,7 +1,9 @@
 @page "/student/take-exam"
+@layout ExamLayout
 @using Microsoft.AspNetCore.Components.Authorization
 @attribute [Authorize(Roles = UserRoles.Student)]
 @inject IExamService ExamService
+@inject IExamAppService ExamAppService
 @inject AuthenticationStateProvider AuthenticationStateProvider
 @inject UserManager<ApplicationUser> UserManager
 @inject NavigationManager Navigation
@@ -26,54 +28,36 @@
 }
 else if (!examStarted)
 {
-    <!-- Entry Screen -->
+    <!-- Exam App Required -->
     <RadzenRow JustifyContent="JustifyContent.Center" AlignItems="AlignItems.Center" Gap="2rem">
-        <RadzenColumn Size="12" SizeMD="6" SizeLG="4">
+        <RadzenColumn Size="12" SizeMD="7" SizeLG="5">
             <RadzenCard>
-                <RadzenStack Gap="1.5rem" AlignItems="AlignItems.Center">
-                    <RadzenIcon Icon="assignment" IconColor="@Colors.Primary" />
-                    
+                <RadzenStack Gap="1rem" AlignItems="AlignItems.Center">
+                    <RadzenIcon Icon="lock" IconColor="@Colors.Warning" />
                     <RadzenText TextStyle="TextStyle.H4" TextAlign="TextAlign.Center" TagName="TagName.H1">
-                        Take Your Exam
+                        PeP Exam App Required
                     </RadzenText>
                     <RadzenText TextStyle="TextStyle.Body1" TextAlign="TextAlign.Center">
-                        Enter the exam code provided by your teacher to begin
+                        Exams can only be started and taken from the dedicated PeP Exam App.
                     </RadzenText>
 
-                    <RadzenAlert AlertStyle="AlertStyle.Info" Variant="Variant.Flat" AllowClose="false" Size="AlertSize.Small">
-                        Make sure you have a stable internet connection before starting.
-                    </RadzenAlert>
+                    @if (!string.IsNullOrWhiteSpace(examAppError))
+                    {
+                        <RadzenAlert AlertStyle="AlertStyle.Danger" Icon="error" Closeable="false">
+                            @examAppError
+                        </RadzenAlert>
+                    }
+                    else
+                    {
+                        <RadzenAlert AlertStyle="AlertStyle.Info" Variant="Variant.Flat" AllowClose="false" Size="AlertSize.Small">
+                            Open the PeP Exam App, sign in, enter your exam code, and follow the on-screen steps to launch your exam.
+                        </RadzenAlert>
+                    }
 
-                    <RadzenTemplateForm TItem="ExamAccessViewModel" Data="@examAccessModel" Submit="@StartExam">
-                        <RadzenStack Gap="1rem" AlignItems="AlignItems.Stretch">
-                            <RadzenFormField Text="Exam Code" Variant="Variant.Outlined">
-                                <Start>
-                                    <RadzenIcon Icon="vpn_key" />
-                                </Start>
-                                <ChildContent>
-                                    <RadzenTextBox @bind-Value="@examAccessModel.ExamCode" 
-                                                   Name="ExamCode"
-                                                   Placeholder="e.g., ABC123" 
-                                                   MaxLength="20" />
-                                </ChildContent>
-                            </RadzenFormField>
-                            <RadzenRequiredValidator Component="ExamCode" Text="Exam code is required" />
-
-                            <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.Center" Gap="1rem">
-                                <RadzenButton ButtonType="ButtonType.Submit" 
-                                            Text="Start Exam" 
-                                            Icon="play_arrow" 
-                                            ButtonStyle="ButtonStyle.Primary"
-                                            Size="ButtonSize.Large"
-                                            IsBusy="@isLoading" />
-                                <RadzenButton Text="Cancel" 
-                                            Icon="close" 
-                                            ButtonStyle="ButtonStyle.Light"
-                                            Size="ButtonSize.Large"
-                                            Click="@(() => Navigation.NavigateTo("/"))" />
-                            </RadzenStack>
-                        </RadzenStack>
-                    </RadzenTemplateForm>
+                    <RadzenButton Text="Back to Dashboard"
+                                  Icon="dashboard"
+                                  ButtonStyle="ButtonStyle.Primary"
+                                  Click="@BackToDashboard" />
                 </RadzenStack>
             </RadzenCard>
         </RadzenColumn>
@@ -242,14 +226,16 @@ else if (currentExamAttempt != null)
     private bool examStarted = false;
     private bool isLoading = false;
     private bool isExamLoading = false;
+    private string? examAppError;
     private ExamAttempt? currentExamAttempt;
     private Exam? currentExam;
     private List<Question> questions = new();
     private List<StudentAnswer> studentAnswers = new();
     private int currentQuestionIndex = 0;
     private Question? currentQuestion => questions.ElementAtOrDefault(currentQuestionIndex);
-    private Timer? timer;
+    private System.Threading.Timer? timer;
     private TimeSpan timeRemaining;
+    private DateTime? examEndsAtUtc;
     private string? currentUserId;
 
     [Parameter, SupplyParameterFromQuery(Name = "attemptId")]
@@ -260,6 +246,11 @@ else if (currentExamAttempt != null)
 
     [Parameter, SupplyParameterFromQuery(Name = "submit")]
     public bool? SubmitRequested { get; set; }
+
+    [Parameter, SupplyParameterFromQuery(Name = "launchToken")]
+    public string? LaunchToken { get; set; }
+
+    private string? activeLaunchToken;
 
     // Question state
     private int? selectedSingleChoice;
@@ -273,10 +264,35 @@ else if (currentExamAttempt != null)
 
     protected override async Task OnParametersSetAsync()
     {
+        if (!QueryAttemptId.HasValue)
+        {
+            examAppError = null;
+        }
+
         if (QueryAttemptId.HasValue && currentUserId != null &&
             (currentExamAttempt == null || currentExamAttempt.Id != QueryAttemptId.Value))
         {
+            examAppError = null;
             isExamLoading = true;
+
+            if (string.IsNullOrWhiteSpace(LaunchToken))
+            {
+                examAppError = "This exam can only be launched from the PeP Exam App.";
+                examStarted = false;
+                isExamLoading = false;
+                return;
+            }
+
+            var isValid = await ExamAppService.ValidateLaunchTokenAsync(QueryAttemptId.Value, currentUserId, LaunchToken);
+            if (!isValid)
+            {
+                examAppError = "This exam session is not authorized or has expired. Please relaunch from the PeP Exam App.";
+                examStarted = false;
+                isExamLoading = false;
+                return;
+            }
+
+            activeLaunchToken = LaunchToken;
             examStarted = true; // prevent entry screen flash
             await LoadExistingAttemptAsync(QueryAttemptId.Value, QueryQuestionIndex);
         }
@@ -328,9 +344,9 @@ else if (currentExamAttempt != null)
             currentQuestionIndex = Math.Clamp(questionIndexOverride ?? 0, 0, questions.Count - 1);
             examStarted = true;
 
-            var elapsedSeconds = (DateTime.UtcNow - attempt.StartedAt).TotalSeconds;
-            var totalSeconds = currentExam.DurationMinutes * 60;
-            timeRemaining = TimeSpan.FromSeconds(Math.Max(0, totalSeconds - elapsedSeconds));
+            examEndsAtUtc = attempt.StartedAt.AddMinutes(currentExam.DurationMinutes);
+            timeRemaining = examEndsAtUtc.Value - DateTime.UtcNow;
+            if (timeRemaining < TimeSpan.Zero) timeRemaining = TimeSpan.Zero;
 
             InitializeQuestionState();
             StartTimer();
@@ -407,6 +423,7 @@ else if (currentExamAttempt != null)
             studentAnswers = attempt.StudentAnswers.ToList();
 
             examStarted = true;
+            examEndsAtUtc = DateTime.UtcNow.AddMinutes(currentExam.DurationMinutes);
             timeRemaining = TimeSpan.FromMinutes(currentExam.DurationMinutes);
 
             InitializeQuestionState();
@@ -427,20 +444,49 @@ else if (currentExamAttempt != null)
 
     private void StartTimer()
     {
-        timer = new Timer(async _ =>
+        StopTimer();
+
+        timer = new System.Threading.Timer(_ =>
         {
-            timeRemaining = timeRemaining.Subtract(TimeSpan.FromSeconds(1));
+            _ = InvokeAsync(UpdateTimerAsync);
+        }, null, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(1));
+    }
+
+    private void StopTimer()
+    {
+        timer?.Dispose();
+        timer = null;
+    }
+
+    private async Task UpdateTimerAsync()
+    {
+        try
+        {
+            if (!examStarted || currentExamAttempt == null || examEndsAtUtc == null)
+            {
+                return;
+            }
+
+            timeRemaining = examEndsAtUtc.Value - DateTime.UtcNow;
             if (timeRemaining <= TimeSpan.Zero)
             {
+                timeRemaining = TimeSpan.Zero;
+                StateHasChanged();
                 await AutoSubmitExam();
+                return;
             }
-            await InvokeAsync(StateHasChanged);
-        }, null, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(1));
+
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Timer update error: {ex.Message}");
+        }
     }
 
     private async Task AutoSubmitExam()
     {
-        timer?.Dispose();
+        StopTimer();
         await SubmitExamInternal(autoSubmitted: true);
     }
 
@@ -553,7 +599,8 @@ else if (currentExamAttempt != null)
         await SaveAndPersistCurrentAnswer();
         if (currentExamAttempt != null)
         {
-            Navigation.NavigateTo($"/student/exam-navigator/{currentExamAttempt.Id}?questionIndex={currentQuestionIndex}");
+            var token = Uri.EscapeDataString(activeLaunchToken ?? LaunchToken ?? string.Empty);
+            Navigation.NavigateTo($"/student/exam-navigator/{currentExamAttempt.Id}?questionIndex={currentQuestionIndex}&launchToken={token}");
         }
     }
 
@@ -593,7 +640,7 @@ else if (currentExamAttempt != null)
 
     private async Task FinishExam()
     {
-        timer?.Dispose();
+        StopTimer();
         await SubmitExamInternal(autoSubmitted: false);
     }
 
@@ -658,7 +705,7 @@ else if (currentExamAttempt != null)
 
     public void Dispose()
     {
-        timer?.Dispose();
+        StopTimer();
     }
 
     private class QuestionNavigatorItem
@@ -670,5 +717,10 @@ else if (currentExamAttempt != null)
         public bool IsMarked { get; set; }
         public bool IsCurrent { get; set; }
         public ButtonStyle ButtonStyle { get; set; }
+    }
+
+    private void BackToDashboard()
+    {
+        Navigation.NavigateTo("/");
     }
 }

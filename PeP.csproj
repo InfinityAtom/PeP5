@@ -28,4 +28,12 @@
     <Folder Include="Pages\Shared\" />
   </ItemGroup>
 
+  <!-- Exclude the WPF Exam App project folder from the ASP.NET project globbing -->
+  <ItemGroup>
+    <Compile Remove="PeP.ExamApp\**\*.cs" />
+    <EmbeddedResource Remove="PeP.ExamApp\**\*" />
+    <Content Remove="PeP.ExamApp\**\*" />
+    <None Remove="PeP.ExamApp\**\*" />
+  </ItemGroup>
+
 </Project>

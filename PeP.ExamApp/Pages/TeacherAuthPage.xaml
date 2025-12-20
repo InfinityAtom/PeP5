@@ -1,0 +1,100 @@
+<Page x:Class="PeP.ExamApp.Pages.TeacherAuthPage"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+      xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+      mc:Ignorable="d"
+      Title="Teacher Authorization"
+      Background="{StaticResource BackgroundBrush}">
+
+    <Grid VerticalAlignment="Center" HorizontalAlignment="Center">
+        <Border Style="{StaticResource CardStyle}" MaxWidth="520" Margin="40">
+            <StackPanel>
+                <!-- Header -->
+                <TextBlock Text="🔐" FontSize="48" TextAlignment="Center" Margin="0,0,0,16"/>
+                <TextBlock Text="Teacher Authorization" 
+                           Style="{StaticResource SubheadingStyle}"
+                           TextAlignment="Center"/>
+                <TextBlock Text="A teacher must authorize this exam before it can start" 
+                           Style="{StaticResource BodyStyle}"
+                           TextAlignment="Center"
+                           Margin="0,8,0,32"/>
+
+                <!-- Exam Info Card -->
+                <Border Background="#F8FAFC" 
+                        BorderBrush="{StaticResource BorderBrush}" 
+                        BorderThickness="1" 
+                        CornerRadius="12" 
+                        Padding="20"
+                        Margin="0,0,0,24">
+                    <StackPanel>
+                        <Grid Margin="0,0,0,12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="80"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="Exam" FontWeight="SemiBold" Foreground="{StaticResource TextSecondaryBrush}"/>
+                            <TextBlock x:Name="ExamText" Grid.Column="1" FontWeight="SemiBold"/>
+                        </Grid>
+
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="80"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="Teacher" FontWeight="SemiBold" Foreground="{StaticResource TextSecondaryBrush}"/>
+                            <TextBlock x:Name="TeacherText" Grid.Column="1"/>
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
+                <!-- Teacher Password -->
+                <TextBlock Text="Teacher Password" Style="{StaticResource LabelStyle}"/>
+                <PasswordBox x:Name="TeacherPasswordBox" 
+                             Style="{StaticResource ModernPasswordBoxStyle}"/>
+
+                <!-- Status -->
+                <TextBlock x:Name="StatusText" 
+                           Style="{StaticResource BodyStyle}"
+                           Foreground="{StaticResource PrimaryBrush}"
+                           Margin="0,16,0,0"
+                           TextAlignment="Center"/>
+
+                <!-- Error Message -->
+                <Border x:Name="ErrorBorder" 
+                        Background="#FEF2F2" 
+                        BorderBrush="#FECACA" 
+                        BorderThickness="1" 
+                        CornerRadius="8" 
+                        Padding="12"
+                        Margin="0,8,0,0"
+                        Visibility="Collapsed">
+                    <TextBlock x:Name="ErrorText" 
+                               Foreground="#DC2626" 
+                               TextWrapping="Wrap"
+                               FontSize="13"/>
+                </Border>
+
+                <!-- Buttons -->
+                <Grid Margin="0,24,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <Button Content="← Back" 
+                            Style="{StaticResource SecondaryButtonStyle}"
+                            Grid.Column="0"
+                            Click="OnBackClick"/>
+                    <Button x:Name="AuthorizeButton" 
+                            Content="Authorize" 
+                            Style="{StaticResource PrimaryButtonStyle}"
+                            Grid.Column="1"
+                            Margin="12,0,0,0"
+                            Click="OnAuthorizeClick"/>
+                </Grid>
+            </StackPanel>
+        </Border>
+    </Grid>
+</Page>
+

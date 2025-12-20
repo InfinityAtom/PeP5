@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using PeP.Models;
 using PeP.Services;
 using Radzen;
+using System.Data;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -58,6 +59,7 @@ builder.Services.AddScoped<ContextMenuService>();
 
 // Application services
 builder.Services.AddScoped<IExamService, ExamService>();
+builder.Services.AddScoped<IExamAppService, ExamAppService>();
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IOpenAIService, OpenAIService>();
 
@@ -116,7 +118,10 @@ static async Task SeedDataAsync(ApplicationDbContext context, UserManager<Applic
 {
     try
     {
-        // Apply pending migrations without deleting data
+        // Apply pending migrations without deleting data.
+        // If the database schema exists but migrations history is missing (common in localdb/dev resets),
+        // baseline the initial migration so future migrations (like the Exam App tables) can apply.
+        await EnsureMigrationsBaselineAsync(context);
         await context.Database.MigrateAsync();
 
         // Seed roles
@@ -174,5 +179,90 @@ static async Task SeedDataAsync(ApplicationDbContext context, UserManager<Applic
     {
         // Log the exception but don't crash the application
         Console.WriteLine($"Error seeding database: {ex.Message}");
+    }
+}
+
+static async Task EnsureMigrationsBaselineAsync(ApplicationDbContext context)
+{
+    const string initialMigrationId = "20251130100008_InitialCreate";
+    const string productVersion = "6.0.36";
+
+    var connection = context.Database.GetDbConnection();
+    var shouldClose = connection.State != ConnectionState.Open;
+
+    try
+    {
+        if (shouldClose)
+        {
+            await connection.OpenAsync();
+        }
+
+        async Task<bool> TableExistsAsync(string tableName)
+        {
+            using var cmd = connection.CreateCommand();
+            cmd.CommandText = "SELECT COUNT(*) FROM sys.tables WHERE name = @name";
+
+            var param = cmd.CreateParameter();
+            param.ParameterName = "@name";
+            param.Value = tableName;
+            cmd.Parameters.Add(param);
+
+            var result = await cmd.ExecuteScalarAsync();
+            return Convert.ToInt32(result) > 0;
+        }
+
+        var historyExists = await TableExistsAsync("__EFMigrationsHistory");
+        if (!historyExists)
+        {
+            // If there are already Identity tables, the schema exists and we should baseline.
+            var hasIdentityTables = await TableExistsAsync("AspNetRoles");
+            if (!hasIdentityTables)
+            {
+                return;
+            }
+
+            using (var createCmd = connection.CreateCommand())
+            {
+                createCmd.CommandText = @"
+CREATE TABLE [__EFMigrationsHistory] (
+    [MigrationId] nvarchar(150) NOT NULL,
+    [ProductVersion] nvarchar(32) NOT NULL,
+    CONSTRAINT [PK___EFMigrationsHistory] PRIMARY KEY ([MigrationId])
+);";
+                await createCmd.ExecuteNonQueryAsync();
+            }
+        }
+
+        using (var insertCmd = connection.CreateCommand())
+        {
+            insertCmd.CommandText = @"
+IF NOT EXISTS (SELECT 1 FROM [__EFMigrationsHistory] WHERE [MigrationId] = @migrationId)
+BEGIN
+    INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion]) VALUES (@migrationId, @productVersion);
+END;";
+
+            var p1 = insertCmd.CreateParameter();
+            p1.ParameterName = "@migrationId";
+            p1.Value = initialMigrationId;
+            insertCmd.Parameters.Add(p1);
+
+            var p2 = insertCmd.CreateParameter();
+            p2.ParameterName = "@productVersion";
+            p2.Value = productVersion;
+            insertCmd.Parameters.Add(p2);
+
+            await insertCmd.ExecuteNonQueryAsync();
+        }
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"Migration baseline check failed: {ex.Message}");
+    }
+    finally
+    {
+        if (shouldClose)
+        {
+            await connection.CloseAsync();
+        }
     }
 }

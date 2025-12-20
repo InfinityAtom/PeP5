@@ -1,0 +1,156 @@
+<Page x:Class="PeP.ExamApp.Pages.TutorialPage"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+      xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+      mc:Ignorable="d"
+      Title="Tutorial"
+      Background="{StaticResource BackgroundBrush}">
+
+    <Grid VerticalAlignment="Center" HorizontalAlignment="Center">
+        <Border Style="{StaticResource CardStyle}" MaxWidth="680" Margin="40">
+            <StackPanel>
+                <!-- Header -->
+                <TextBlock Text="📚" FontSize="48" TextAlignment="Center" Margin="0,0,0,16"/>
+                <TextBlock Text="Before You Start" 
+                           Style="{StaticResource SubheadingStyle}"
+                           TextAlignment="Center"/>
+                <TextBlock Text="Read these important instructions carefully" 
+                           Style="{StaticResource BodyStyle}"
+                           TextAlignment="Center"
+                           Margin="0,8,0,32"/>
+
+                <!-- Instructions Card -->
+                <Border Background="#F8FAFC" 
+                        BorderBrush="{StaticResource BorderBrush}" 
+                        BorderThickness="1" 
+                        CornerRadius="12" 
+                        Padding="24">
+                    <StackPanel>
+                        <TextBlock Text="During the Exam:" 
+                                   FontWeight="Bold" 
+                                   FontSize="16"
+                                   Foreground="{StaticResource TextPrimaryBrush}"
+                                   Margin="0,0,0,16"/>
+
+                        <!-- Instruction Items -->
+                        <Grid Margin="0,0,0,12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <Border Width="28" Height="28" CornerRadius="14" 
+                                    Background="{StaticResource PrimaryBrush}" Margin="0,0,12,0">
+                                <TextBlock Text="1" Foreground="White" FontWeight="Bold"
+                                           HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            </Border>
+                            <TextBlock Grid.Column="1" Text="Use Next/Previous to navigate between questions" 
+                                       VerticalAlignment="Center" Style="{StaticResource BodyStyle}"/>
+                        </Grid>
+
+                        <Grid Margin="0,0,0,12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <Border Width="28" Height="28" CornerRadius="14" 
+                                    Background="{StaticResource PrimaryBrush}" Margin="0,0,12,0">
+                                <TextBlock Text="2" Foreground="White" FontWeight="Bold"
+                                           HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            </Border>
+                            <TextBlock Grid.Column="1" Text="Use 'Flag for Review' to mark questions for later" 
+                                       VerticalAlignment="Center" Style="{StaticResource BodyStyle}"/>
+                        </Grid>
+
+                        <Grid Margin="0,0,0,12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <Border Width="28" Height="28" CornerRadius="14" 
+                                    Background="{StaticResource PrimaryBrush}" Margin="0,0,12,0">
+                                <TextBlock Text="3" Foreground="White" FontWeight="Bold"
+                                           HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            </Border>
+                            <TextBlock Grid.Column="1" Text="Use Navigator to jump to any question" 
+                                       VerticalAlignment="Center" Style="{StaticResource BodyStyle}"/>
+                        </Grid>
+
+                        <Grid Margin="0,0,0,12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <Border Width="28" Height="28" CornerRadius="14" 
+                                    Background="{StaticResource PrimaryBrush}" Margin="0,0,12,0">
+                                <TextBlock Text="4" Foreground="White" FontWeight="Bold"
+                                           HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            </Border>
+                            <TextBlock Grid.Column="1" Text="Your answers are saved automatically" 
+                                       VerticalAlignment="Center" Style="{StaticResource BodyStyle}"/>
+                        </Grid>
+
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <Border Width="28" Height="28" CornerRadius="14" 
+                                    Background="{StaticResource PrimaryBrush}" Margin="0,0,12,0">
+                                <TextBlock Text="5" Foreground="White" FontWeight="Bold"
+                                           HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            </Border>
+                            <TextBlock Grid.Column="1" Text="Submit from the Navigator when finished" 
+                                       VerticalAlignment="Center" Style="{StaticResource BodyStyle}"/>
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
+                <!-- Warning Box -->
+                <Border Background="#FEF2F2" 
+                        BorderBrush="#FECACA" 
+                        BorderThickness="1" 
+                        CornerRadius="8" 
+                        Padding="16"
+                        Margin="0,20,0,0">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="⚠️" FontSize="20" VerticalAlignment="Top" Margin="0,0,12,0"/>
+                        <TextBlock TextWrapping="Wrap" Foreground="#991B1B" FontSize="13">
+                            <Run FontWeight="SemiBold">Do not attempt to:</Run>
+                            <Run>Switch applications, take screenshots, use Alt+Tab, or close this window during the exam.</Run>
+                        </TextBlock>
+                    </StackPanel>
+                </Border>
+
+                <!-- Acknowledgment -->
+                <CheckBox x:Name="AcknowledgeCheckBox" 
+                          Style="{StaticResource ModernCheckBoxStyle}"
+                          Content="I understand and agree to follow these instructions" 
+                          Margin="0,24,0,0" 
+                          Checked="OnAcknowledgedChanged" 
+                          Unchecked="OnAcknowledgedChanged"/>
+
+                <!-- Buttons -->
+                <Grid Margin="0,24,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <Button Content="← Back" 
+                            Style="{StaticResource SecondaryButtonStyle}"
+                            Grid.Column="0"
+                            Click="OnBackClick"/>
+                    <Button x:Name="ContinueButton" 
+                            Content="Continue to Security Check" 
+                            Style="{StaticResource PrimaryButtonStyle}"
+                            Grid.Column="1"
+                            Margin="12,0,0,0"
+                            IsEnabled="False"
+                            Click="OnContinueClick"/>
+                </Grid>
+            </StackPanel>
+        </Border>
+    </Grid>
+</Page>
+

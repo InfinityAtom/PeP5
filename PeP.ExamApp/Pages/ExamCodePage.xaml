@@ -1,0 +1,143 @@
+<Page x:Class="PeP.ExamApp.Pages.ExamCodePage"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+      xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+      mc:Ignorable="d"
+      Title="Exam Code"
+      Background="{StaticResource BackgroundBrush}">
+
+    <Grid VerticalAlignment="Center" HorizontalAlignment="Center">
+        <Border Style="{StaticResource CardStyle}" MaxWidth="560" Margin="40">
+            <StackPanel>
+                <!-- Header -->
+                <TextBlock Text="🔑" FontSize="48" TextAlignment="Center" Margin="0,0,0,16"/>
+                <TextBlock Text="Enter Exam Code" 
+                           Style="{StaticResource SubheadingStyle}"
+                           TextAlignment="Center"/>
+                <TextBlock Text="Enter the access code provided by your instructor" 
+                           Style="{StaticResource BodyStyle}"
+                           TextAlignment="Center"
+                           Margin="0,8,0,32"/>
+
+                <!-- Code Input -->
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBox x:Name="CodeTextBox" 
+                             Style="{StaticResource ModernTextBoxStyle}"
+                             FontSize="18"
+                             FontWeight="SemiBold"
+                             TextAlignment="Center"
+                             CharacterCasing="Upper"/>
+                    <Button x:Name="LookupButton" 
+                            Content="Lookup" 
+                            Style="{StaticResource PrimaryButtonStyle}"
+                            Grid.Column="1"
+                            Margin="12,0,0,0"
+                            Click="OnLookupClick"/>
+                </Grid>
+
+                <!-- Status -->
+                <TextBlock x:Name="StatusText" 
+                           Style="{StaticResource BodyStyle}"
+                           Foreground="{StaticResource PrimaryBrush}"
+                           Margin="0,16,0,0"
+                           TextAlignment="Center"/>
+
+                <!-- Error Message -->
+                <Border x:Name="ErrorBorder" 
+                        Background="#FEF2F2" 
+                        BorderBrush="#FECACA" 
+                        BorderThickness="1" 
+                        CornerRadius="8" 
+                        Padding="12"
+                        Margin="0,8,0,0"
+                        Visibility="Collapsed">
+                    <TextBlock x:Name="ErrorText" 
+                               Foreground="#DC2626" 
+                               TextWrapping="Wrap"
+                               FontSize="13"
+                               TextAlignment="Center"/>
+                </Border>
+
+                <!-- Exam Details Card -->
+                <Border x:Name="ExamDetailsCard"
+                        Background="#F8FAFC" 
+                        BorderBrush="{StaticResource BorderBrush}" 
+                        BorderThickness="1" 
+                        CornerRadius="12" 
+                        Padding="20"
+                        Margin="0,24,0,0"
+                        Visibility="Collapsed">
+                    <StackPanel>
+                        <TextBlock Text="📋 Exam Details" 
+                                   FontWeight="Bold" 
+                                   FontSize="16"
+                                   Foreground="{StaticResource TextPrimaryBrush}"
+                                   Margin="0,0,0,16"/>
+
+                        <Grid Margin="0,0,0,12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="100"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="Title" FontWeight="SemiBold" Foreground="{StaticResource TextSecondaryBrush}"/>
+                            <TextBlock x:Name="ExamTitleText" Grid.Column="1" FontWeight="SemiBold"/>
+                        </Grid>
+
+                        <Grid Margin="0,0,0,12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="100"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="Course" FontWeight="SemiBold" Foreground="{StaticResource TextSecondaryBrush}"/>
+                            <TextBlock x:Name="CourseText" Grid.Column="1"/>
+                        </Grid>
+
+                        <Grid Margin="0,0,0,12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="100"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="Teacher" FontWeight="SemiBold" Foreground="{StaticResource TextSecondaryBrush}"/>
+                            <TextBlock x:Name="TeacherText" Grid.Column="1"/>
+                        </Grid>
+
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="100"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="Duration" FontWeight="SemiBold" Foreground="{StaticResource TextSecondaryBrush}"/>
+                            <TextBlock x:Name="DurationText" Grid.Column="1"/>
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
+                <!-- Buttons -->
+                <Grid Margin="0,24,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <Button Content="← Back" 
+                            Style="{StaticResource SecondaryButtonStyle}"
+                            Grid.Column="0"
+                            Click="OnBackClick"/>
+                    <Button x:Name="ContinueButton" 
+                            Content="Continue" 
+                            Style="{StaticResource PrimaryButtonStyle}"
+                            Grid.Column="1"
+                            Margin="12,0,0,0"
+                            IsEnabled="False"
+                            Click="OnContinueClick"/>
+                </Grid>
+            </StackPanel>
+        </Border>
+    </Grid>
+</Page>
+

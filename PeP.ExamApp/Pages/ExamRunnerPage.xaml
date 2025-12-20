@@ -1,0 +1,108 @@
+<Page x:Class="PeP.ExamApp.Pages.ExamRunnerPage"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+      xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+      xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
+      xmlns:controls="clr-namespace:PeP.ExamApp.Controls"
+      mc:Ignorable="d"
+      Title="Secure Exam"
+      Background="#0F172A">
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+        
+        <!-- Main Exam Content -->
+        <Grid Grid.Row="0">
+            <!-- WebView for Exam Content -->
+            <wv2:WebView2 x:Name="ExamWebView" />
+
+            <!-- Watermark Layer -->
+            <Canvas x:Name="WatermarkLayer"
+                    IsHitTestVisible="False"
+                    Opacity="0.08" />
+
+            <!-- Security Status Bar -->
+            <Border x:Name="SecurityStatusBar"
+                    VerticalAlignment="Top"
+                    HorizontalAlignment="Right"
+                    Background="#1E293B"
+                    CornerRadius="0,0,0,8"
+                    Padding="12,6"
+                    Margin="0"
+                    Opacity="0.9">
+                <StackPanel Orientation="Horizontal">
+                    <Ellipse Width="8" Height="8" Fill="#10B981" Margin="0,0,8,0"/>
+                    <TextBlock Text="🔒 Secure Mode Active" 
+                               Foreground="#94A3B8" 
+                               FontSize="11"
+                               FontWeight="SemiBold"/>
+                </StackPanel>
+            </Border>
+
+            <!-- Loading Overlay -->
+            <Border x:Name="Overlay" Background="#F8FAFC">
+                <Grid>
+                    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Width="420">
+                        <!-- Animated Loader -->
+                        <Border Width="80" Height="80" CornerRadius="40" 
+                                Background="{StaticResource PrimaryGradientBrush}"
+                                Margin="0,0,0,24">
+                            <TextBlock Text="🚀" FontSize="36" 
+                                       HorizontalAlignment="Center" 
+                                       VerticalAlignment="Center"/>
+                        </Border>
+
+                        <TextBlock Text="Launching Secure Exam..." 
+                                   FontSize="24" 
+                                   FontWeight="SemiBold" 
+                                   Foreground="{StaticResource TextPrimaryBrush}"
+                                   TextAlignment="Center"/>
+                        
+                        <TextBlock Text="Initializing secure browser environment"
+                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                   FontSize="14"
+                                   TextAlignment="Center"
+                                   Margin="0,8,0,24"/>
+
+                        <ProgressBar IsIndeterminate="True" 
+                                     Height="6" 
+                                     Background="#E2E8F0"
+                                     Foreground="{StaticResource PrimaryBrush}"
+                                     Margin="40,0"/>
+
+                        <!-- Error Message -->
+                        <Border x:Name="OverlayErrorBorder" 
+                                Background="#FEF2F2" 
+                                BorderBrush="#FECACA" 
+                                BorderThickness="1" 
+                                CornerRadius="8" 
+                                Padding="16"
+                                Margin="0,24,0,0"
+                                Visibility="Collapsed">
+                            <StackPanel>
+                                <TextBlock Text="⚠️ Launch Failed" 
+                                           FontWeight="SemiBold" 
+                                           Foreground="#DC2626"
+                                           Margin="0,0,0,8"/>
+                                <TextBlock x:Name="OverlayErrorText" 
+                                           Foreground="#991B1B" 
+                                           TextWrapping="Wrap"
+                                           FontSize="13"/>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </Grid>
+            </Border>
+        </Grid>
+
+        <!-- Custom Taskbar -->
+        <controls:ExamTaskbar x:Name="ExamTaskbar" 
+                              Grid.Row="1"
+                              ExitRequested="OnTaskbarExitRequested"
+                              InternetToggled="OnInternetToggled"/>
+    </Grid>
+</Page>
