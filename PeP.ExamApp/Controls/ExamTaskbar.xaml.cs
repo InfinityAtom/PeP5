@@ -10,12 +10,10 @@ public partial class ExamTaskbar : UserControl
 {
     private readonly DispatcherTimer _clockTimer;
     private readonly DispatcherTimer _networkTimer;
-    private bool _internetEnabled = true;
     private MainWindow? _mainWindow;
     private string? _teacherPassword;
 
     public event EventHandler? ExitRequested;
-    public event EventHandler<bool>? InternetToggled;
 
     public ExamTaskbar()
     {
@@ -112,15 +110,10 @@ public partial class ExamTaskbar : UserControl
             
             Dispatcher.Invoke(() =>
             {
-                if (isConnected && _internetEnabled)
+                if (isConnected)
                 {
                     InternetIndicator.Fill = new SolidColorBrush(Color.FromRgb(16, 185, 129)); // Green
                     InternetStatusText.Text = "Online";
-                }
-                else if (!_internetEnabled)
-                {
-                    InternetIndicator.Fill = new SolidColorBrush(Color.FromRgb(245, 158, 11)); // Amber
-                    InternetStatusText.Text = "Disabled";
                 }
                 else
                 {
@@ -137,9 +130,18 @@ public partial class ExamTaskbar : UserControl
 
     private void OnInternetToggleClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
     {
-        // Toggle internet status (this is informational - actual control would require admin rights)
-        _internetEnabled = !_internetEnabled;
-        InternetToggled?.Invoke(this, _internetEnabled);
+        // Open the network panel popup
+        NetworkPopup.IsOpen = !NetworkPopup.IsOpen;
+    }
+
+    private void OnNetworkPanelClose(object? sender, EventArgs e)
+    {
+        NetworkPopup.IsOpen = false;
+    }
+
+    private void OnNetworkChanged(object? sender, string networkName)
+    {
+        // Refresh network status when network changes
         CheckNetworkStatus();
     }
 

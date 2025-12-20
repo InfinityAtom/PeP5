@@ -112,12 +112,6 @@ public partial class ExamRunnerPage : Page
         SubmitExamAndExit();
     }
 
-    private void OnInternetToggled(object? sender, bool enabled)
-    {
-        // This is informational only - actual network control would require admin network commands
-        // Could implement actual control with netsh commands if needed
-    }
-
     private async void SubmitExamAndExit()
     {
         try

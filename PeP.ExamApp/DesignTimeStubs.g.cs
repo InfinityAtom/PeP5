@@ -2,6 +2,50 @@
 // Design-time stubs for editors that don't run the WPF XAML compiler (e.g., VS Code).
 // These are included ONLY for DesignTimeBuild so runtime builds still use the real generated XAML partial classes.
 
+namespace PeP.ExamApp.Controls
+{
+    public partial class ExamTaskbar
+    {
+        private void InitializeComponent() { }
+
+        internal System.Windows.Controls.TextBlock ExamTitleText { get; } = new();
+        internal System.Windows.Controls.TextBlock ClockText { get; } = new();
+        internal System.Windows.Controls.TextBlock DateText { get; } = new();
+        internal System.Windows.Controls.Border ViolationBorder { get; } = new();
+        internal System.Windows.Controls.TextBlock ViolationCountText { get; } = new();
+        internal System.Windows.Shapes.Ellipse InternetIndicator { get; } = new();
+        internal System.Windows.Controls.TextBlock InternetStatusText { get; } = new();
+        internal System.Windows.Controls.Primitives.Popup NetworkPopup { get; } = new();
+        internal NetworkPanel NetworkPanelControl { get; } = new();
+    }
+
+    public partial class NetworkPanel
+    {
+        private void InitializeComponent() { }
+
+        internal System.Windows.Controls.TextBlock ConnectionStatusText { get; } = new();
+        internal System.Windows.Controls.TextBlock ConnectionIcon { get; } = new();
+        internal System.Windows.Controls.TextBlock CurrentNetworkName { get; } = new();
+        internal System.Windows.Controls.TextBlock CurrentNetworkType { get; } = new();
+        internal System.Windows.Controls.Button DisconnectButton { get; } = new();
+        internal System.Windows.Controls.Button RefreshButton { get; } = new();
+        internal System.Windows.Controls.Border LoadingPanel { get; } = new();
+        internal System.Windows.Controls.ListBox NetworkList { get; } = new();
+        internal System.Windows.Controls.Border NoNetworksPanel { get; } = new();
+        internal System.Windows.Controls.Border EthernetStatus { get; } = new();
+        internal System.Windows.Controls.TextBlock EthernetStatusText { get; } = new();
+    }
+
+    public partial class WiFiPasswordDialog
+    {
+        private void InitializeComponent() { }
+
+        internal System.Windows.Controls.TextBlock NetworkNameText { get; } = new();
+        internal System.Windows.Controls.PasswordBox PasswordInput { get; } = new();
+        internal System.Windows.Controls.TextBlock ErrorText { get; } = new();
+    }
+}
+
 namespace PeP.ExamApp.Pages
 {
     public partial class ConnectPage

@@ -102,7 +102,6 @@
         <!-- Custom Taskbar -->
         <controls:ExamTaskbar x:Name="ExamTaskbar" 
                               Grid.Row="1"
-                              ExitRequested="OnTaskbarExitRequested"
-                              InternetToggled="OnInternetToggled"/>
+                              ExitRequested="OnTaskbarExitRequested"/>
     </Grid>
 </Page>

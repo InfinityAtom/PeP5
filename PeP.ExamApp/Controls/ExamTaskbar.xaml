@@ -3,11 +3,13 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:local="clr-namespace:PeP.ExamApp.Controls"
              mc:Ignorable="d"
              Height="40"
              d:DesignWidth="800">
 
-    <Border Background="#1E293B" BorderBrush="#334155" BorderThickness="0,1,0,0">
+    <Grid>
+        <Border Background="#1E293B" BorderBrush="#334155" BorderThickness="0,1,0,0">
         <Grid>
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto"/>
@@ -137,5 +139,18 @@
                 </Button>
             </StackPanel>
         </Grid>
-    </Border>
+        </Border>
+        
+        <!-- Network Panel Popup -->
+        <Popup x:Name="NetworkPopup"
+               PlacementTarget="{Binding ElementName=InternetStatusBorder}"
+               Placement="Top"
+               StaysOpen="False"
+               AllowsTransparency="True"
+               PopupAnimation="Fade">
+            <local:NetworkPanel x:Name="NetworkPanelControl"
+                                CloseRequested="OnNetworkPanelClose"
+                                NetworkChanged="OnNetworkChanged"/>
+        </Popup>
+    </Grid>
 </UserControl>
