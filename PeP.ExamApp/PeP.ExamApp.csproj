@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
@@ -20,7 +20,7 @@
     <Company>Infinity Atom</Company>
     <Authors>eng. Fabian Pavel VELICEA</Authors>
     <Description>Secure exam browser application for PeP platform</Description>
-    <Copyright>Copyright © Infinity Atom 2025</Copyright>
+    <Copyright>Copyright (c) Infinity Atom 2025</Copyright>
   </PropertyGroup>
 
   <ItemGroup>

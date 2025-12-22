@@ -33,8 +33,8 @@ LZMAUseSeparateProcess=yes
 ; Appearance
 SetupIconFile=..\app.ico
 WizardStyle=modern
-WizardImageFile=WizardImage.bmp
-WizardSmallImageFile=WizardSmallImage.bmp
+; WizardImageFile=WizardImage.bmp
+; WizardSmallImageFile=WizardSmallImage.bmp
 ; Privileges
 PrivilegesRequired=admin
 PrivilegesRequiredOverridesAllowed=dialog

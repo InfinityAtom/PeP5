@@ -90,6 +90,9 @@ app.MapRazorPages();
 // Map controllers for authentication
 app.MapControllers();
 
+// Health check endpoint for Cloud Run
+app.MapGet("/health", () => Results.Ok(new { status = "healthy", timestamp = DateTime.UtcNow }));
+
 app.MapBlazorHub();
 app.MapFallbackToPage("/_Host");
 

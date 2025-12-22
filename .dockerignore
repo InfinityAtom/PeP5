@@ -1,0 +1,33 @@
+# Ignore build outputs
+**/bin/
+**/obj/
+**/out/
+**/publish/
+
+# Ignore IDE files
+.vs/
+.vscode/
+*.user
+*.suo
+
+# Ignore git
+.git/
+.gitignore
+
+# Ignore test files
+**/*Tests/
+**/TestResults/
+
+# Ignore local settings
+appsettings.Development.json
+appsettings.Local.json
+
+# Ignore PeP.ExamApp (separate deployment)
+PeP.ExamApp/
+
+# Ignore docs
+*.md
+LICENSE
+
+# Ignore installer files
+**/Installer/
