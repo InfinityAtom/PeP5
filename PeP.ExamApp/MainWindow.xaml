@@ -6,7 +6,7 @@
         xmlns:local="clr-namespace:PeP.ExamApp"
         mc:Ignorable="d"
         Title="PeP Secure Exam Browser" 
-        Icon="Assets/logo.png"
+        Icon="app.ico"
         WindowState="Maximized"
         WindowStyle="None"
         ResizeMode="NoResize"
