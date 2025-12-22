@@ -4,6 +4,7 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.Windows;
 using System.Windows.Threading;
+using PeP.ExamApp.Services;
 
 namespace PeP.ExamApp;
 
@@ -12,7 +13,9 @@ namespace PeP.ExamApp;
 /// </summary>
 public partial class App : System.Windows.Application
 {
-    protected override void OnStartup(StartupEventArgs e)
+    private UpdateService? _updateService;
+
+    protected override async void OnStartup(StartupEventArgs e)
     {
         // Add global exception handlers
         AppDomain.CurrentDomain.UnhandledException += OnUnhandledException;
@@ -27,6 +30,34 @@ public partial class App : System.Windows.Application
         }
 
         base.OnStartup(e);
+
+        // Check for updates in the background
+        await CheckForUpdatesAsync();
+    }
+
+    private async Task CheckForUpdatesAsync()
+    {
+        try
+        {
+            // Initialize update service with your server URL
+            _updateService = new UpdateService("https://localhost:7170");
+            
+            // Clean up old update files
+            _updateService.CleanupOldUpdates();
+
+            // Check for updates
+            var updateInfo = await _updateService.CheckForUpdateAsync();
+            
+            if (updateInfo != null)
+            {
+                await _updateService.PromptAndInstallUpdateAsync(updateInfo);
+            }
+        }
+        catch (Exception ex)
+        {
+            // Don't block app startup if update check fails
+            Debug.WriteLine($"Update check failed: {ex.Message}");
+        }
     }
 
     private void OnUnhandledException(object sender, UnhandledExceptionEventArgs e)

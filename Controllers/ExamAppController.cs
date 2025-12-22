@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Configuration;
 using PeP.Models;
 using PeP.Services;
 
@@ -12,11 +13,51 @@ namespace PeP.Controllers
     {
         private readonly IExamAppService _examAppService;
         private readonly UserManager<ApplicationUser> _userManager;
+        private readonly IConfiguration _configuration;
 
-        public ExamAppController(IExamAppService examAppService, UserManager<ApplicationUser> userManager)
+        public ExamAppController(
+            IExamAppService examAppService, 
+            UserManager<ApplicationUser> userManager,
+            IConfiguration configuration)
         {
             _examAppService = examAppService;
             _userManager = userManager;
+            _configuration = configuration;
+        }
+
+        /// <summary>
+        /// Get latest update information for the Exam App
+        /// </summary>
+        [HttpGet("update")]
+        [AllowAnonymous]
+        public ActionResult<UpdateInfoResponse> GetUpdateInfo([FromQuery] string? currentVersion)
+        {
+            // Read update info from configuration
+            var updateSection = _configuration.GetSection("ExamAppUpdate");
+            
+            var updateInfo = new UpdateInfoResponse
+            {
+                Version = updateSection["Version"] ?? "1.0.0",
+                DownloadUrl = updateSection["DownloadUrl"] ?? "",
+                ReleaseNotes = updateSection["ReleaseNotes"] ?? "",
+                ReleaseDate = DateTime.TryParse(updateSection["ReleaseDate"], out var date) ? date : DateTime.UtcNow,
+                IsMandatory = bool.TryParse(updateSection["IsMandatory"], out var mandatory) && mandatory,
+                MinimumVersion = updateSection["MinimumVersion"] ?? "1.0.0",
+                Checksum = updateSection["Checksum"] ?? ""
+            };
+
+            return Ok(updateInfo);
+        }
+
+        public record UpdateInfoResponse
+        {
+            public string Version { get; init; } = string.Empty;
+            public string DownloadUrl { get; init; } = string.Empty;
+            public string ReleaseNotes { get; init; } = string.Empty;
+            public DateTime ReleaseDate { get; init; }
+            public bool IsMandatory { get; init; }
+            public string MinimumVersion { get; init; } = string.Empty;
+            public string Checksum { get; init; } = string.Empty;
         }
 
         [HttpGet("code/{code}")]
