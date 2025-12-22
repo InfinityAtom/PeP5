@@ -10,12 +10,11 @@
 
 <p align="center">
   <a href="#features">Features</a> •
-  <a href="#architecture">Architecture</a> •
+  <a href="#live-demo">Live Demo</a> •
+  <a href="#download">Download</a> •
   <a href="#installation">Installation</a> •
-  <a href="#configuration">Configuration</a> •
-  <a href="#usage">Usage</a> •
-  <a href="#security">Security</a> •
-  <a href="#api">API</a>
+  <a href="#deployment">Deployment</a> •
+  <a href="#security">Security</a>
 </p>
 
 <p align="center">
@@ -23,8 +22,38 @@
   <img src="https://img.shields.io/badge/Blazor-Server-512BD4?style=for-the-badge&logo=blazor" alt="Blazor Server">
   <img src="https://img.shields.io/badge/WPF-.NET%208-512BD4?style=for-the-badge&logo=windows" alt="WPF .NET 8">
   <img src="https://img.shields.io/badge/SQL%20Server-Database-CC2927?style=for-the-badge&logo=microsoftsqlserver" alt="SQL Server">
-  <img src="https://img.shields.io/badge/License-MIT-green?style=for-the-badge" alt="License">
+  <img src="https://img.shields.io/badge/Google%20Cloud-Deployed-4285F4?style=for-the-badge&logo=googlecloud" alt="Google Cloud">
 </p>
+
+---
+
+## 🌐 Live Demo
+
+**Web Application:** [https://pep-webapp-795388481242.us-central1.run.app](https://pep-webapp-795388481242.us-central1.run.app)
+
+### Demo Credentials
+
+| Role | Email | Password |
+|------|-------|----------|
+| Admin | `admin@pep.com` | `Admin123!` |
+
+---
+
+## 📥 Download
+
+### PeP Exam App (Secure Desktop Client)
+
+Download the secure exam browser for Windows:
+
+| Version | Download | Size |
+|---------|----------|------|
+| **v1.0.0** | [⬇️ Download PeP.ExamApp_Setup_1.0.0.exe](https://storage.googleapis.com/pep-downloads/PeP.ExamApp_Setup_1.0.0.exe) | ~48 MB |
+
+**System Requirements:**
+- Windows 10/11 (64-bit)
+- .NET 8.0 Runtime (included in installer)
+- WebView2 Runtime (auto-installed if missing)
+- Administrator privileges (required for exam mode)
 
 ---
 
@@ -36,12 +65,11 @@
 - [Technology Stack](#-technology-stack)
 - [Installation](#-installation)
 - [Configuration](#-configuration)
+- [Deployment](#-deployment)
 - [Usage Guide](#-usage-guide)
 - [Security Features](#-security-features)
 - [API Documentation](#-api-documentation)
-- [Database Schema](#-database-schema)
 - [Troubleshooting](#-troubleshooting)
-- [Contributing](#-contributing)
 - [License](#-license)
 
 ---
@@ -315,9 +343,7 @@ After the first run, the following default accounts are created:
 
 | Role | Email | Password |
 |------|-------|----------|
-| Admin | `admin@pep.edu` | `Admin123!` |
-| Teacher | `teacher@pep.edu` | `Teacher123!` |
-| Student | `student@pep.edu` | `Student123!` |
+| Admin | `admin@pep.com` | `Admin123!` |
 
 > ⚠️ **Important:** Change these passwords immediately in production!
 
@@ -376,7 +402,87 @@ export Email__Password="..."
 
 ---
 
-## 📖 Usage Guide
+## � Deployment
+
+### Google Cloud Deployment
+
+PeP is deployed on Google Cloud using Cloud Run and Cloud SQL for SQL Server.
+
+#### Architecture
+- **Cloud Run** - Containerized web application (auto-scaling)
+- **Cloud SQL** - Managed SQL Server database
+- **Cloud Storage** - Hosting for ExamApp installer downloads
+
+#### Deploying Updates
+
+1. **Build and push Docker image:**
+```bash
+gcloud builds submit --tag us-central1-docker.pkg.dev/pep-platform/pep-docker/pep-webapp
+```
+
+2. **Deploy to Cloud Run:**
+```bash
+gcloud run deploy pep-webapp \
+    --image us-central1-docker.pkg.dev/pep-platform/pep-docker/pep-webapp:latest \
+    --region us-central1
+```
+
+#### Uploading New ExamApp Installer
+
+1. **Build the installer:**
+```powershell
+cd PeP.ExamApp\Installer
+.\build-installer.ps1 -Version "1.1.0"
+```
+
+2. **Upload to Cloud Storage:**
+```bash
+gcloud storage cp "Output\PeP.ExamApp_Setup_1.1.0.exe" gs://pep-downloads/
+```
+
+3. **Update the download URL** in `Pages/Index.razor` if the version changed.
+
+#### Estimated Monthly Costs
+
+| Service | Specification | Est. Cost |
+|---------|--------------|-----------|
+| Cloud SQL for SQL Server | 1 vCPU, 3.75GB RAM | ~$50-80 |
+| Cloud Run | Auto-scaling (0-10 instances) | ~$5-20 |
+| Cloud Storage | ExamApp installer hosting | ~$1 |
+| **Total** | | **~$56-100/month** |
+
+---
+
+### Building the ExamApp Installer
+
+The ExamApp uses Inno Setup for creating Windows installers.
+
+#### Prerequisites
+- [Inno Setup 6](https://jrsoftware.org/isinfo.php)
+- .NET 8.0 SDK
+
+#### Build Steps
+
+```powershell
+cd PeP.ExamApp\Installer
+
+# Build with version
+.\build-installer.ps1 -Version "1.0.0"
+
+# Output: Output\PeP.ExamApp_Setup_1.0.0.exe
+```
+
+#### Installer Features
+- Silent installation (`/SILENT` or `/VERYSILENT`)
+- Custom installation directory
+- Desktop shortcut (optional)
+- Start menu group
+- Auto-update support
+- Clean uninstall
+
+---
+
+## �📖 Usage Guide
 
 ### 👨‍💼 Administrator Guide
 

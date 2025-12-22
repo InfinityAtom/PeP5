@@ -1,5 +1,6 @@
 ﻿@page "/"
 @using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.JSInterop
 @inject AuthenticationStateProvider AuthenticationStateProvider
 @inject UserManager<ApplicationUser> UserManager
 @inject IExamService ExamService
@@ -125,6 +126,25 @@ else
                                     </RadzenCard>
                                 </RadzenColumn>
                                 <RadzenColumn Size="12" SizeLG="4">
+                                    <RadzenCard>
+                                        <RadzenText TextStyle="TextStyle.H6" TagName="TagName.H2" Style="margin-bottom: 1rem;">
+                                            <RadzenIcon Icon="computer" Style="margin-right: 0.5rem;" /> Exam App
+                                        </RadzenText>
+                                        <RadzenText TextStyle="TextStyle.Body2" class="text-muted" Style="margin-bottom: 1rem;">
+                                            Download the secure exam browser to take proctored exams.
+                                        </RadzenText>
+                                        <RadzenButton Text="Download Exam App" 
+                                                    Icon="download" 
+                                                    ButtonStyle="ButtonStyle.Success"
+                                                    Size="ButtonSize.Medium"
+                                                    Style="width: 100%;"
+                                                    Click="@(() => DownloadExamApp())" />
+                                    </RadzenCard>
+                                </RadzenColumn>
+                            </RadzenRow>
+
+                            <RadzenRow Gap="1rem">
+                                <RadzenColumn Size="12">
                                     <RadzenCard>
                                         <RadzenText TextStyle="TextStyle.H6" TagName="TagName.H2" Style="margin-bottom: 1rem;">
                                             Recent Activity
@@ -455,11 +475,19 @@ else
 
 @code {
     [Inject] private NavigationManager Navigation { get; set; } = default!;
+    [Inject] private IJSRuntime JSRuntime { get; set; } = default!;
+
+    private const string ExamAppDownloadUrl = "https://storage.googleapis.com/pep-downloads/PeP.ExamApp_Setup_1.0.0.exe";
 
     private StudentDashboardStats? studentStats;
     private TeacherDashboardStats? teacherStats;
     private AdminDashboardStats? adminStats;
     private bool isLoading = true;
+
+    private async Task DownloadExamApp()
+    {
+        await JSRuntime.InvokeVoidAsync("open", ExamAppDownloadUrl, "_blank");
+    }
 
     protected override async Task OnInitializedAsync()
     {

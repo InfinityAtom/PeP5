@@ -41,11 +41,11 @@ gcloud config set project pep-platform
 
 ```powershell
 # Create SQL Server instance (this takes 5-10 minutes)
-gcloud sql instances create pep-sql-instance `
+gcloud sql instances create pepsqlinstance `
     --database-version=SQLSERVER_2019_STANDARD `
     --tier=db-custom-1-3840 `
     --region=us-central1 `
-    --root-password=YourStrongPassword123! `
+    --root-password=Songocu_003 `
     --storage-size=10GB `
     --storage-auto-increase
 
