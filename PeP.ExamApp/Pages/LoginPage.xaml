@@ -10,8 +10,10 @@
     <Grid VerticalAlignment="Center" HorizontalAlignment="Center">
         <Border Style="{StaticResource CardStyle}" MaxWidth="480" Margin="40">
             <StackPanel>
-                <!-- Header -->
-                <TextBlock Text="👤" FontSize="48" TextAlignment="Center" Margin="0,0,0,16"/>
+                <!-- Header with Logo -->
+                <Border Background="{StaticResource PrimaryGradientBrush}" CornerRadius="20" Width="100" Height="100" Margin="0,0,0,16" HorizontalAlignment="Center">
+                    <Image Source="/Assets/logo.png" Height="60" Width="60" HorizontalAlignment="Center" VerticalAlignment="Center" RenderOptions.BitmapScalingMode="HighQuality"/>
+                </Border>
                 <TextBlock Text="Student Sign In" 
                            Style="{StaticResource SubheadingStyle}"
                            TextAlignment="Center"/>

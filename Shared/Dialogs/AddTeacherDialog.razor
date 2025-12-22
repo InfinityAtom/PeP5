@@ -1,45 +1,95 @@
 @inject IUserService UserService
 @inject NotificationService NotificationService
 
-<RadzenTemplateForm TItem="TeacherViewModel" Data="@model" Submit="@OnSubmit">
-    <RadzenStack Gap="1rem">
-        <RadzenFormField Text="First Name" Variant="Variant.Outlined">
-            <RadzenTextBox @bind-Value="@model.FirstName" MaxLength="50" Name="FirstName" />
-            <RadzenRequiredValidator Component="FirstName" Text="First name is required" />
-        </RadzenFormField>
-
-        <RadzenFormField Text="Last Name" Variant="Variant.Outlined">
-            <RadzenTextBox @bind-Value="@model.LastName" MaxLength="50" Name="LastName" />
-            <RadzenRequiredValidator Component="LastName" Text="Last name is required" />
-        </RadzenFormField>
-
-        <RadzenFormField Text="Email" Variant="Variant.Outlined">
-            <RadzenTextBox @bind-Value="@model.Email" MaxLength="100" Name="Email" />
-            <RadzenRequiredValidator Component="Email" Text="Email is required" />
-            <RadzenEmailValidator Component="Email" Text="Invalid email format" />
-        </RadzenFormField>
-
-        <RadzenFormField Text="Department" Variant="Variant.Outlined">
-            <RadzenTextBox @bind-Value="@model.Department" MaxLength="100" Name="Department" />
-        </RadzenFormField>
-
-        <RadzenFormField Text="Password" Variant="Variant.Outlined">
-            <RadzenPassword @bind-Value="@model.Password" MaxLength="100" Name="Password" />
-            <RadzenRequiredValidator Component="Password" Text="Password is required" />
-        </RadzenFormField>
-
-        <RadzenFormField Text="Confirm Password" Variant="Variant.Outlined">
-            <RadzenPassword @bind-Value="@model.ConfirmPassword" MaxLength="100" Name="ConfirmPassword" />
-            <RadzenRequiredValidator Component="ConfirmPassword" Text="Password confirmation is required" />
-            <RadzenCompareValidator Component="ConfirmPassword" Value="@model.Password" Text="Passwords do not match" />
-        </RadzenFormField>
-
-        <RadzenStack Orientation="Orientation.Horizontal" Gap="1rem" JustifyContent="JustifyContent.End">
-            <RadzenButton Text="Cancel" ButtonStyle="ButtonStyle.Light" Click="@(() => dialogService.Close(false))" />
-            <RadzenButton Text="Add Teacher" ButtonStyle="ButtonStyle.Primary" ButtonType="ButtonType.Submit" IsBusy="@isSubmitting" />
+<RadzenStack Gap="1rem" Style="min-width:500px;">
+    <!-- Header -->
+    <RadzenStack Gap="0.25rem" Style="border-bottom:1px solid var(--rz-base-300);padding-bottom:0.75rem;">
+        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
+            <RadzenIcon Icon="person_add" Style="font-size:1.5rem;color:var(--rz-primary);" />
+            <RadzenText TextStyle="TextStyle.H6" TagName="TagName.H2" Style="margin:0;">Add New Teacher</RadzenText>
         </RadzenStack>
+        <RadzenText TextStyle="TextStyle.Caption" class="text-muted">Create a new teacher account with login credentials.</RadzenText>
     </RadzenStack>
-</RadzenTemplateForm>
+
+    <RadzenTemplateForm TItem="TeacherViewModel" Data="@model" Submit="@OnSubmit">
+        <RadzenStack Gap="1rem">
+            <!-- Personal Information Card -->
+            <RadzenCard Style="background:var(--rz-base-100);padding:1rem;">
+                <RadzenStack Gap="0.75rem">
+                    <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
+                        <RadzenIcon Icon="badge" Style="color:var(--rz-info);font-size:1.1rem;" />
+                        <RadzenText TextStyle="TextStyle.Subtitle1" Style="margin:0;font-weight:500;">Personal Information</RadzenText>
+                    </RadzenStack>
+
+                    <RadzenRow Style="row-gap:0.75rem;">
+                        <RadzenColumn Size="12" SizeMD="6">
+                            <RadzenFormField Text="First Name" Variant="Variant.Outlined" Style="width:100%;">
+                                <RadzenTextBox @bind-Value="@model.FirstName" MaxLength="50" Name="FirstName" Placeholder="Enter first name" Style="width:100%;" />
+                                <RadzenRequiredValidator Component="FirstName" Text="First name is required" />
+                            </RadzenFormField>
+                        </RadzenColumn>
+                        <RadzenColumn Size="12" SizeMD="6">
+                            <RadzenFormField Text="Last Name" Variant="Variant.Outlined" Style="width:100%;">
+                                <RadzenTextBox @bind-Value="@model.LastName" MaxLength="50" Name="LastName" Placeholder="Enter last name" Style="width:100%;" />
+                                <RadzenRequiredValidator Component="LastName" Text="Last name is required" />
+                            </RadzenFormField>
+                        </RadzenColumn>
+                        <RadzenColumn Size="12" SizeMD="6">
+                            <RadzenFormField Text="Email Address" Variant="Variant.Outlined" Style="width:100%;">
+                                <RadzenTextBox @bind-Value="@model.Email" MaxLength="100" Name="Email" Placeholder="teacher@school.edu" Style="width:100%;" />
+                                <RadzenRequiredValidator Component="Email" Text="Email is required" />
+                                <RadzenEmailValidator Component="Email" Text="Invalid email format" />
+                            </RadzenFormField>
+                        </RadzenColumn>
+                        <RadzenColumn Size="12" SizeMD="6">
+                            <RadzenFormField Text="Department" Variant="Variant.Outlined" Style="width:100%;">
+                                <RadzenTextBox @bind-Value="@model.Department" MaxLength="100" Name="Department" Placeholder="e.g. Computer Science" Style="width:100%;" />
+                            </RadzenFormField>
+                        </RadzenColumn>
+                    </RadzenRow>
+                </RadzenStack>
+            </RadzenCard>
+
+            <!-- Security Card -->
+            <RadzenCard Style="background:var(--rz-base-100);padding:1rem;">
+                <RadzenStack Gap="0.75rem">
+                    <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
+                        <RadzenIcon Icon="lock" Style="color:var(--rz-warning);font-size:1.1rem;" />
+                        <RadzenText TextStyle="TextStyle.Subtitle1" Style="margin:0;font-weight:500;">Account Security</RadzenText>
+                    </RadzenStack>
+
+                    <RadzenAlert AlertStyle="AlertStyle.Info" Icon="info" Shade="Shade.Lighter" AllowClose="false" Style="margin-bottom:0.5rem;">
+                        <RadzenText TextStyle="TextStyle.Caption">
+                            The teacher will use these credentials to log in. Make sure to share them securely.
+                        </RadzenText>
+                    </RadzenAlert>
+
+                    <RadzenRow Style="row-gap:0.75rem;">
+                        <RadzenColumn Size="12" SizeMD="6">
+                            <RadzenFormField Text="Password" Variant="Variant.Outlined" Style="width:100%;">
+                                <RadzenPassword @bind-Value="@model.Password" MaxLength="100" Name="Password" Placeholder="Enter password" Style="width:100%;" />
+                                <RadzenRequiredValidator Component="Password" Text="Password is required" />
+                            </RadzenFormField>
+                        </RadzenColumn>
+                        <RadzenColumn Size="12" SizeMD="6">
+                            <RadzenFormField Text="Confirm Password" Variant="Variant.Outlined" Style="width:100%;">
+                                <RadzenPassword @bind-Value="@model.ConfirmPassword" MaxLength="100" Name="ConfirmPassword" Placeholder="Confirm password" Style="width:100%;" />
+                                <RadzenRequiredValidator Component="ConfirmPassword" Text="Confirmation is required" />
+                                <RadzenCompareValidator Component="ConfirmPassword" Value="@model.Password" Text="Passwords do not match" />
+                            </RadzenFormField>
+                        </RadzenColumn>
+                    </RadzenRow>
+                </RadzenStack>
+            </RadzenCard>
+
+            <!-- Action Buttons -->
+            <RadzenStack Orientation="Orientation.Horizontal" Gap="0.75rem" JustifyContent="JustifyContent.End" Style="padding-top:0.5rem;border-top:1px solid var(--rz-base-300);">
+                <RadzenButton Text="Cancel" Icon="close" ButtonStyle="ButtonStyle.Light" Click="@(() => dialogService.Close(false))" />
+                <RadzenButton Text="Add Teacher" Icon="person_add" ButtonStyle="ButtonStyle.Primary" ButtonType="ButtonType.Submit" IsBusy="@isSubmitting" Disabled="@isSubmitting" />
+            </RadzenStack>
+        </RadzenStack>
+    </RadzenTemplateForm>
+</RadzenStack>
 
 @code {
     [Inject] public DialogService dialogService { get; set; } = default!;

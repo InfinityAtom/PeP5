@@ -19,7 +19,7 @@
                 Background="{StaticResource HeaderGradientBrush}" 
                 Padding="40,32">
             <StackPanel HorizontalAlignment="Center" MaxWidth="800">
-                <TextBlock Text="🛡️" FontSize="48" TextAlignment="Center" Margin="0,0,0,16"/>
+                <Image Source="/Assets/logo.png" Height="64" Width="64" Margin="0,0,0,16" HorizontalAlignment="Center" RenderOptions.BitmapScalingMode="HighQuality"/>
                 <TextBlock Text="Security Environment Check" 
                            FontSize="28" 
                            FontWeight="Bold" 

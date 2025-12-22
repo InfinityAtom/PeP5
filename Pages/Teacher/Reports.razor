@@ -155,13 +155,20 @@
         {
             isLoading = true;
             var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            Console.WriteLine($"Reports: Auth state - IsAuthenticated: {authState?.User?.Identity?.IsAuthenticated}");
+            
             if (authState?.User?.Identity?.IsAuthenticated == true)
             {
                 var userId = UserManager.GetUserId(authState.User);
+                Console.WriteLine($"Reports: Teacher UserId = {userId}");
+                
                 if (!string.IsNullOrEmpty(userId))
                 {
-                    var exams = await ExamService.GetExamsForTeacherAsync(userId);
+                    // Use GetAllExamsForTeacherReportsAsync to include ALL exams (active and inactive)
+                    var exams = await ExamService.GetAllExamsForTeacherReportsAsync(userId);
                     var attempts = await ExamService.GetAllExamAttemptsForTeacherAsync(userId);
+                    
+                    Console.WriteLine($"Reports: Found {exams.Count} exams and {attempts.Count} attempts for teacher {userId}");
                     
                     totalExams = exams.Count;
                     totalAttempts = attempts.Count;
@@ -170,18 +177,23 @@
                     averageScore = completedAttempts.Any() ? completedAttempts.Average(a => a.TotalScore) : 0;
                     completionRate = totalAttempts > 0 ? (completedAttempts.Count * 100.0m / totalAttempts) : 0;
                     
-                    // Exam performance data
-                    examPerformance = exams.Select(e => new ExamPerformanceData
+                    // Exam performance data - group attempts by exam
+                    examPerformance = exams.Select(e => 
                     {
-                        ExamTitle = e.Title,
-                        AverageScore = e.ExamAttempts?.Where(a => a.Status == ExamAttemptStatus.Completed)
-                                                    .Average(a => a.TotalScore) ?? 0
-                    }).ToList();
+                        var examAttempts = attempts.Where(a => a.ExamId == e.Id && a.Status == ExamAttemptStatus.Completed).ToList();
+                        return new ExamPerformanceData
+                        {
+                            ExamTitle = e.Title.Length > 20 ? e.Title.Substring(0, 17) + "..." : e.Title,
+                            AverageScore = examAttempts.Any() ? examAttempts.Average(a => a.TotalScore) : 0
+                        };
+                    }).Where(ep => ep.AverageScore > 0).ToList();
                     
                     // Recent attempts (last 20)
                     recentAttempts = attempts.OrderByDescending(a => a.StartedAt)
                                            .Take(20)
                                            .ToList();
+                    
+                    Console.WriteLine($"Reports loaded: {totalExams} exams, {totalAttempts} attempts, {recentAttempts?.Count ?? 0} recent");
                 }
             }
         }

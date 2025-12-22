@@ -35,6 +35,15 @@ public partial class ExamTaskbar : UserControl
 
         Loaded += OnLoaded;
         Unloaded += OnUnloaded;
+        
+        // Handle popup closed event (e.g., clicking outside)
+        NetworkPopup.Closed += OnNetworkPopupClosed;
+    }
+
+    private void OnNetworkPopupClosed(object? sender, EventArgs e)
+    {
+        // Resume hooks when popup closes by any means
+        _mainWindow?.ResumeHooks();
     }
 
     public void Initialize(MainWindow mainWindow, string? examTitle, string? teacherPassword)
@@ -130,13 +139,51 @@ public partial class ExamTaskbar : UserControl
 
     private void OnInternetToggleClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
     {
-        // Open the network panel popup
-        NetworkPopup.IsOpen = !NetworkPopup.IsOpen;
+        try
+        {
+            // Check if _mainWindow is available
+            if (_mainWindow == null)
+            {
+                System.Diagnostics.Debug.WriteLine("Warning: MainWindow not initialized in ExamTaskbar");
+                // Try to get it from visual tree
+                var window = Window.GetWindow(this);
+                if (window is MainWindow mw)
+                {
+                    _mainWindow = mw;
+                }
+            }
+            
+            // Suspend hooks when opening network panel to allow interaction
+            if (!NetworkPopup.IsOpen)
+            {
+                _mainWindow?.SuspendHooks();
+                NetworkPopup.IsOpen = true;
+            }
+            else
+            {
+                NetworkPopup.IsOpen = false;
+                _mainWindow?.ResumeHooks();
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Error toggling network popup: {ex.Message}");
+            // Ensure we try to resume hooks on error
+            try { _mainWindow?.ResumeHooks(); } catch { }
+        }
     }
 
     private void OnNetworkPanelClose(object? sender, EventArgs e)
     {
-        NetworkPopup.IsOpen = false;
+        try
+        {
+            NetworkPopup.IsOpen = false;
+            _mainWindow?.ResumeHooks();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Error closing network panel: {ex.Message}");
+        }
     }
 
     private void OnNetworkChanged(object? sender, string networkName)

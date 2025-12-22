@@ -6,114 +6,259 @@
 
 <PageTitle>Platform Settings - PeP v5.0</PageTitle>
 
-<RadzenStack Gap="1.25rem">
+<RadzenStack Gap="0.75rem" Style="max-width:1400px;margin:0 auto;">
     <RadzenBreadCrumb>
-        <RadzenBreadCrumbItem Path="/" Text="Home" />
-        <RadzenBreadCrumbItem Text="Platform Settings" />
+        <RadzenBreadCrumbItem Path="/" Text="Home" Icon="home" />
+        <RadzenBreadCrumbItem Text="Platform Settings" Icon="settings" />
     </RadzenBreadCrumb>
 
     <RadzenCard Style="padding:1.25rem;">
-        <RadzenStack Gap="0.75rem">
-            <RadzenText TextStyle="TextStyle.H4" TagName="TagName.H1" Style="margin-bottom:0.25rem;">Platform Settings</RadzenText>
+        <RadzenStack Gap="0.5rem" Style="margin-bottom:1rem;">
+            <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
+                <RadzenIcon Icon="settings" Style="font-size:2rem;color:var(--rz-primary);" />
+                <RadzenText TextStyle="TextStyle.H4" TagName="TagName.H1" Style="margin:0;">Platform Settings</RadzenText>
+            </RadzenStack>
             <RadzenText TextStyle="TextStyle.Body2" class="text-muted">Configure global platform, integration, and default exam settings.</RadzenText>
-
-            <RadzenTemplateForm Data="@model" TItem="SettingsModel" Submit="@OnSave" Style="margin-top:0.5rem;">
-                <RadzenStack Gap="1.25rem">
-                    <RadzenRow Style="row-gap:1rem;">
-                        <RadzenColumn Size="12" SizeMD="6">
-                            <RadzenFieldset Text="Platform Information" Style="min-height:100%;">
-                                <RadzenStack Gap="0.75rem">
-                                    <RadzenFormField Text="Platform Name" Variant="Variant.Outlined">
-                                        <RadzenTextBox @bind-Value="model.PlatformName" Name="PlatformName" MaxLength="200" />
-                                        <RadzenRequiredValidator Component="PlatformName" Text="Platform name required" />
-                                    </RadzenFormField>
-                                    <RadzenFormField Text="Version" Variant="Variant.Outlined">
-                                        <RadzenTextBox @bind-Value="model.Version" Name="Version" MaxLength="50" />
-                                    </RadzenFormField>
-                                    <RadzenFormField Text="Company Name" Variant="Variant.Outlined">
-                                        <RadzenTextBox @bind-Value="model.CompanyName" Name="CompanyName" MaxLength="200" />
-                                    </RadzenFormField>
-                                    <RadzenFormField Text="Copyright" Variant="Variant.Outlined">
-                                        <RadzenTextBox @bind-Value="model.Copyright" Name="Copyright" MaxLength="150" />
-                                    </RadzenFormField>
-                                </RadzenStack>
-                            </RadzenFieldset>
-                        </RadzenColumn>
-
-                        <RadzenColumn Size="12" SizeMD="6">
-                            <RadzenFieldset Text="Defaults" Style="min-height:100%;">
-                                <RadzenStack Gap="0.75rem">
-                                    <RadzenFormField Text="Default Exam Duration (Minutes)" Variant="Variant.Outlined">
-                                        <RadzenNumeric @bind-Value="model.DefaultExamDurationMinutes" Name="DefaultExamDuration" Min="1" Max="600" />
-                                        <RadzenRequiredValidator Component="DefaultExamDuration" Text="Duration required" />
-                                    </RadzenFormField>
-                                    <RadzenAlert AlertStyle="AlertStyle.Info" Icon="info" Style="margin-top:0.25rem;">
-                                        <RadzenText TextStyle="TextStyle.Caption">Applied automatically when creating new exams.</RadzenText>
-                                    </RadzenAlert>
-                                </RadzenStack>
-                            </RadzenFieldset>
-                        </RadzenColumn>
-
-                        <RadzenColumn Size="12" SizeMD="6">
-                            <RadzenFieldset Text="OpenAI Configuration" Style="min-height:100%;">
-                                <RadzenStack Gap="0.75rem">
-                                    <RadzenAlert AlertStyle="AlertStyle.Info" Icon="smart_toy">
-                                        <RadzenText TextStyle="TextStyle.Caption">Used for AI-generated questions. Key stored encrypted.</RadzenText>
-                                    </RadzenAlert>
-                                    <RadzenFormField Text="OpenAI API Key" Variant="Variant.Outlined">
-                                        <RadzenPassword @bind-Value="model.OpenAIApiKey" Name="OpenAIApiKey" Placeholder="sk-..." />
-                                        <RadzenRequiredValidator Component="OpenAIApiKey" Text="API key required for AI features" />
-                                    </RadzenFormField>
-                                    <RadzenStack Orientation="Orientation.Horizontal" Gap="0.75rem">
-                                        <RadzenButton Text="Test Connection" Icon="wifi" ButtonStyle="ButtonStyle.Info" Size="ButtonSize.Small" Click="@TestOpenAI" Disabled="@DisableOpenAiTest" IsBusy="@isTestingOpenAi" />
-                                        @if (openAiTestStatus != null)
-                                        {
-                                            <RadzenBadge Text="@openAiTestStatus" BadgeStyle="@openAiTestStyle" />
-                                        }
-                                    </RadzenStack>
-                                </RadzenStack>
-                            </RadzenFieldset>
-                        </RadzenColumn>
-
-                        <RadzenColumn Size="12" SizeMD="6">
-                            <RadzenFieldset Text="Email (SMTP) Configuration" Style="min-height:100%;">
-                                <RadzenStack Gap="0.75rem">
-                                    <RadzenAlert AlertStyle="AlertStyle.Info" Icon="email">
-                                        <RadzenText TextStyle="TextStyle.Caption">Used for welcome emails and notifications.</RadzenText>
-                                    </RadzenAlert>
-                                    <RadzenFormField Text="SMTP Server" Variant="Variant.Outlined">
-                                        <RadzenTextBox @bind-Value="model.EmailServer" Name="EmailServer" />
-                                        <RadzenRequiredValidator Component="EmailServer" Text="Server required" />
-                                    </RadzenFormField>
-                                    <RadzenFormField Text="SMTP Port" Variant="Variant.Outlined">
-                                        <RadzenNumeric @bind-Value="model.EmailPort" Name="EmailPort" Min="1" Max="65535" />
-                                        <RadzenRequiredValidator Component="EmailPort" Text="Port required" />
-                                    </RadzenFormField>
-                                    <RadzenFormField Text="Email Username" Variant="Variant.Outlined">
-                                        <RadzenTextBox @bind-Value="model.EmailUsername" Name="EmailUsername" />
-                                    </RadzenFormField>
-                                    <RadzenFormField Text="Email Password" Variant="Variant.Outlined">
-                                        <RadzenPassword @bind-Value="model.EmailPassword" Name="EmailPassword" />
-                                    </RadzenFormField>
-                                    <RadzenStack Orientation="Orientation.Horizontal" Gap="0.75rem">
-                                        <RadzenButton Text="Test SMTP" Icon="play_arrow" ButtonStyle="ButtonStyle.Info" Size="ButtonSize.Small" Click="@TestSmtp" Disabled="@DisableSmtpTest" IsBusy="@isTestingSmtp" />
-                                        @if (smtpTestStatus != null)
-                                        {
-                                            <RadzenBadge Text="@smtpTestStatus" BadgeStyle="@smtpTestStyle" />
-                                        }
-                                    </RadzenStack>
-                                </RadzenStack>
-                            </RadzenFieldset>
-                        </RadzenColumn>
-                    </RadzenRow>
-
-                    <RadzenStack Orientation="Orientation.Horizontal" Gap="0.75rem" JustifyContent="JustifyContent.SpaceBetween" Style="margin-top:0.5rem;">
-                        <RadzenButton Text="Reset" Icon="restore" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Medium" Click="@ResetDefaults" Disabled="@isSaving" />
-                        <RadzenButton Text="Save Settings" Icon="save" ButtonStyle="ButtonStyle.Primary" Size="ButtonSize.Medium" ButtonType="ButtonType.Submit" Disabled="@isSaving" IsBusy="@isSaving" />
-                    </RadzenStack>
-                </RadzenStack>
-            </RadzenTemplateForm>
         </RadzenStack>
+
+        <RadzenTemplateForm Data="@model" TItem="SettingsModel" Submit="@OnSave">
+            <RadzenTabs>
+                <Tabs>
+                    <!-- Platform Tab -->
+                    <RadzenTabsItem Text="Platform" Icon="info">
+                        <RadzenRow Style="row-gap:1rem;margin-top:1rem;">
+                            <RadzenColumn Size="12" SizeMD="6">
+                                <RadzenCard Style="height:100%;background:var(--rz-base-100);">
+                                    <RadzenStack Gap="0.75rem">
+                                        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
+                                            <RadzenIcon Icon="apartment" Style="color:var(--rz-info);" />
+                                            <RadzenText TextStyle="TextStyle.H6" Style="margin:0;">Platform Information</RadzenText>
+                                        </RadzenStack>
+
+                                        <RadzenFormField Text="Platform Name" Variant="Variant.Outlined" Style="width:100%;">
+                                            <RadzenTextBox @bind-Value="model.PlatformName" Name="PlatformName" MaxLength="200" 
+                                                          Placeholder="e.g. PeP - Programming Examination Platform" Style="width:100%;" />
+                                            <RadzenRequiredValidator Component="PlatformName" Text="Platform name is required" />
+                                        </RadzenFormField>
+
+                                        <RadzenFormField Text="Version" Variant="Variant.Outlined" Style="width:100%;">
+                                            <RadzenTextBox @bind-Value="model.Version" Name="Version" MaxLength="50" 
+                                                          Placeholder="e.g. 5.0" Style="width:100%;" />
+                                        </RadzenFormField>
+
+                                        <RadzenFormField Text="Company Name" Variant="Variant.Outlined" Style="width:100%;">
+                                            <RadzenTextBox @bind-Value="model.CompanyName" Name="CompanyName" MaxLength="200" 
+                                                          Placeholder="e.g. Infinity Atom" Style="width:100%;" />
+                                        </RadzenFormField>
+
+                                        <RadzenFormField Text="Copyright" Variant="Variant.Outlined" Style="width:100%;">
+                                            <RadzenTextBox @bind-Value="model.Copyright" Name="Copyright" MaxLength="150" 
+                                                          Placeholder="e.g. Copyright 2021 - 2025" Style="width:100%;" />
+                                        </RadzenFormField>
+                                    </RadzenStack>
+                                </RadzenCard>
+                            </RadzenColumn>
+
+                            <RadzenColumn Size="12" SizeMD="6">
+                                <RadzenCard Style="height:100%;background:var(--rz-base-100);">
+                                    <RadzenStack Gap="0.75rem">
+                                        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
+                                            <RadzenIcon Icon="tune" Style="color:var(--rz-secondary);" />
+                                            <RadzenText TextStyle="TextStyle.H6" Style="margin:0;">Default Settings</RadzenText>
+                                        </RadzenStack>
+
+                                        <RadzenFormField Text="Default Exam Duration (Minutes)" Variant="Variant.Outlined" Style="width:100%;">
+                                            <RadzenNumeric @bind-Value="model.DefaultExamDurationMinutes" Name="DefaultExamDuration" 
+                                                          Min="1" Max="600" Style="width:100%;" />
+                                            <RadzenRequiredValidator Component="DefaultExamDuration" Text="Duration is required" />
+                                        </RadzenFormField>
+
+                                        <RadzenAlert AlertStyle="AlertStyle.Info" Icon="info" Shade="Shade.Lighter" AllowClose="false">
+                                            <RadzenText TextStyle="TextStyle.Body2">
+                                                This value will be applied automatically when creating new exams.
+                                            </RadzenText>
+                                        </RadzenAlert>
+                                    </RadzenStack>
+                                </RadzenCard>
+                            </RadzenColumn>
+                        </RadzenRow>
+                    </RadzenTabsItem>
+
+                    <!-- AI Integration Tab -->
+                    <RadzenTabsItem Text="AI Integration" Icon="smart_toy">
+                        <RadzenRow Style="row-gap:1rem;margin-top:1rem;">
+                            <RadzenColumn Size="12" SizeLG="8">
+                                <RadzenCard Style="background:var(--rz-base-100);">
+                                    <RadzenStack Gap="0.75rem">
+                                        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
+                                            <RadzenIcon Icon="smart_toy" Style="color:var(--rz-primary);" />
+                                            <RadzenText TextStyle="TextStyle.H6" Style="margin:0;">OpenAI Configuration</RadzenText>
+                                        </RadzenStack>
+
+                                        <RadzenAlert AlertStyle="AlertStyle.Info" Icon="info" Shade="Shade.Lighter" AllowClose="false">
+                                            <RadzenText TextStyle="TextStyle.Body2">
+                                                The OpenAI API is used to generate exam questions automatically. Your API key is stored securely.
+                                            </RadzenText>
+                                        </RadzenAlert>
+
+                                        <RadzenFormField Text="OpenAI API Key" Variant="Variant.Outlined" Style="width:100%;">
+                                            <ChildContent>
+                                                <RadzenPassword @bind-Value="model.OpenAIApiKey" Name="OpenAIApiKey" 
+                                                               Placeholder="sk-..." Style="width:100%;" />
+                                            </ChildContent>
+                                        </RadzenFormField>
+                                        <RadzenRequiredValidator Component="OpenAIApiKey" Text="API key is required for AI features" />
+
+                                        <RadzenStack Orientation="Orientation.Horizontal" Gap="0.75rem" AlignItems="AlignItems.Center">
+                                            <RadzenButton Text="Test Connection" Icon="wifi" ButtonStyle="ButtonStyle.Info" 
+                                                         Size="ButtonSize.Medium" Click="@TestOpenAI" 
+                                                         Disabled="@DisableOpenAiTest" IsBusy="@isTestingOpenAi" />
+                                            @if (openAiTestStatus != null)
+                                            {
+                                                <RadzenBadge Text="@openAiTestStatus" BadgeStyle="@openAiTestStyle" />
+                                            }
+                                        </RadzenStack>
+                                    </RadzenStack>
+                                </RadzenCard>
+                            </RadzenColumn>
+
+                            <RadzenColumn Size="12" SizeLG="4">
+                                <RadzenCard Style="background:linear-gradient(135deg, var(--rz-info-lighter) 0%, var(--rz-primary-lighter) 100%);height:100%;">
+                                    <RadzenStack Gap="1rem">
+                                        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
+                                            <RadzenIcon Icon="help" Style="font-size:1.5rem;color:var(--rz-primary);" />
+                                            <RadzenText TextStyle="TextStyle.H6" Style="margin:0;">Getting an API Key</RadzenText>
+                                        </RadzenStack>
+
+                                        <RadzenStack Gap="0.75rem">
+                                            <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" AlignItems="AlignItems.Start">
+                                                <RadzenBadge Text="1" BadgeStyle="BadgeStyle.Primary" Style="min-width:24px;" />
+                                                <RadzenText TextStyle="TextStyle.Body2">Go to platform.openai.com</RadzenText>
+                                            </RadzenStack>
+                                            <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" AlignItems="AlignItems.Start">
+                                                <RadzenBadge Text="2" BadgeStyle="BadgeStyle.Primary" Style="min-width:24px;" />
+                                                <RadzenText TextStyle="TextStyle.Body2">Sign in or create an account</RadzenText>
+                                            </RadzenStack>
+                                            <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" AlignItems="AlignItems.Start">
+                                                <RadzenBadge Text="3" BadgeStyle="BadgeStyle.Primary" Style="min-width:24px;" />
+                                                <RadzenText TextStyle="TextStyle.Body2">Navigate to API Keys section</RadzenText>
+                                            </RadzenStack>
+                                            <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" AlignItems="AlignItems.Start">
+                                                <RadzenBadge Text="4" BadgeStyle="BadgeStyle.Primary" Style="min-width:24px;" />
+                                                <RadzenText TextStyle="TextStyle.Body2">Create a new secret key</RadzenText>
+                                            </RadzenStack>
+                                        </RadzenStack>
+                                    </RadzenStack>
+                                </RadzenCard>
+                            </RadzenColumn>
+                        </RadzenRow>
+                    </RadzenTabsItem>
+
+                    <!-- Email Tab -->
+                    <RadzenTabsItem Text="Email (SMTP)" Icon="email">
+                        <RadzenRow Style="row-gap:1rem;margin-top:1rem;">
+                            <RadzenColumn Size="12" SizeLG="8">
+                                <RadzenCard Style="background:var(--rz-base-100);">
+                                    <RadzenStack Gap="0.75rem">
+                                        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
+                                            <RadzenIcon Icon="email" Style="color:var(--rz-success);" />
+                                            <RadzenText TextStyle="TextStyle.H6" Style="margin:0;">SMTP Configuration</RadzenText>
+                                        </RadzenStack>
+
+                                        <RadzenAlert AlertStyle="AlertStyle.Info" Icon="info" Shade="Shade.Lighter" AllowClose="false">
+                                            <RadzenText TextStyle="TextStyle.Body2">
+                                                Configure SMTP settings to send welcome emails and notifications to students and teachers.
+                                            </RadzenText>
+                                        </RadzenAlert>
+
+                                        <RadzenRow Style="row-gap:0.75rem;">
+                                            <RadzenColumn Size="12" SizeMD="8">
+                                                <RadzenFormField Text="SMTP Server" Variant="Variant.Outlined" Style="width:100%;">
+                                                    <RadzenTextBox @bind-Value="model.EmailServer" Name="EmailServer" 
+                                                                  Placeholder="e.g. smtp.gmail.com" Style="width:100%;" />
+                                                    <RadzenRequiredValidator Component="EmailServer" Text="Server is required" />
+                                                </RadzenFormField>
+                                            </RadzenColumn>
+                                            <RadzenColumn Size="12" SizeMD="4">
+                                                <RadzenFormField Text="Port" Variant="Variant.Outlined" Style="width:100%;">
+                                                    <RadzenNumeric @bind-Value="model.EmailPort" Name="EmailPort" 
+                                                                  Min="1" Max="65535" Style="width:100%;" />
+                                                    <RadzenRequiredValidator Component="EmailPort" Text="Port is required" />
+                                                </RadzenFormField>
+                                            </RadzenColumn>
+                                            <RadzenColumn Size="12" SizeMD="6">
+                                                <RadzenFormField Text="Email / Username" Variant="Variant.Outlined" Style="width:100%;">
+                                                    <RadzenTextBox @bind-Value="model.EmailUsername" Name="EmailUsername" 
+                                                                  Placeholder="e.g. noreply@school.edu" Style="width:100%;" />
+                                                </RadzenFormField>
+                                            </RadzenColumn>
+                                            <RadzenColumn Size="12" SizeMD="6">
+                                                <RadzenFormField Text="Password / App Password" Variant="Variant.Outlined" Style="width:100%;">
+                                                    <RadzenPassword @bind-Value="model.EmailPassword" Name="EmailPassword" 
+                                                                   Placeholder="Enter SMTP password" Style="width:100%;" />
+                                                </RadzenFormField>
+                                            </RadzenColumn>
+                                        </RadzenRow>
+
+                                        <RadzenStack Orientation="Orientation.Horizontal" Gap="0.75rem" AlignItems="AlignItems.Center">
+                                            <RadzenButton Text="Send Test Email" Icon="send" ButtonStyle="ButtonStyle.Success" 
+                                                         Size="ButtonSize.Medium" Click="@TestSmtp" 
+                                                         Disabled="@DisableSmtpTest" IsBusy="@isTestingSmtp" />
+                                            @if (smtpTestStatus != null)
+                                            {
+                                                <RadzenBadge Text="@smtpTestStatus" BadgeStyle="@smtpTestStyle" />
+                                            }
+                                        </RadzenStack>
+                                    </RadzenStack>
+                                </RadzenCard>
+                            </RadzenColumn>
+
+                            <RadzenColumn Size="12" SizeLG="4">
+                                <RadzenCard Style="background:linear-gradient(135deg, var(--rz-success-lighter) 0%, var(--rz-info-lighter) 100%);height:100%;">
+                                    <RadzenStack Gap="1rem">
+                                        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
+                                            <RadzenIcon Icon="tips_and_updates" Style="font-size:1.5rem;color:var(--rz-success);" />
+                                            <RadzenText TextStyle="TextStyle.H6" Style="margin:0;">Common SMTP Settings</RadzenText>
+                                        </RadzenStack>
+
+                                        <RadzenStack Gap="0.5rem">
+                                            <RadzenCard Style="background:rgba(255,255,255,0.7);padding:0.75rem;">
+                                                <RadzenText TextStyle="TextStyle.Subtitle2" Style="margin:0;">Gmail</RadzenText>
+                                                <RadzenText TextStyle="TextStyle.Caption" class="text-muted">smtp.gmail.com : 587</RadzenText>
+                                            </RadzenCard>
+                                            <RadzenCard Style="background:rgba(255,255,255,0.7);padding:0.75rem;">
+                                                <RadzenText TextStyle="TextStyle.Subtitle2" Style="margin:0;">Outlook / Office 365</RadzenText>
+                                                <RadzenText TextStyle="TextStyle.Caption" class="text-muted">smtp.office365.com : 587</RadzenText>
+                                            </RadzenCard>
+                                            <RadzenCard Style="background:rgba(255,255,255,0.7);padding:0.75rem;">
+                                                <RadzenText TextStyle="TextStyle.Subtitle2" Style="margin:0;">Yahoo</RadzenText>
+                                                <RadzenText TextStyle="TextStyle.Caption" class="text-muted">smtp.mail.yahoo.com : 587</RadzenText>
+                                            </RadzenCard>
+                                        </RadzenStack>
+
+                                        <RadzenAlert AlertStyle="AlertStyle.Warning" Icon="warning" Shade="Shade.Lighter" AllowClose="false">
+                                            <RadzenText TextStyle="TextStyle.Caption">
+                                                For Gmail, use an App Password instead of your regular password.
+                                            </RadzenText>
+                                        </RadzenAlert>
+                                    </RadzenStack>
+                                </RadzenCard>
+                            </RadzenColumn>
+                        </RadzenRow>
+                    </RadzenTabsItem>
+                </Tabs>
+            </RadzenTabs>
+
+            <!-- Action Buttons -->
+            <RadzenCard Style="background:var(--rz-base-200);padding:1rem;margin-top:1rem;">
+                <RadzenStack Orientation="Orientation.Horizontal" Gap="0.75rem" JustifyContent="JustifyContent.SpaceBetween" AlignItems="AlignItems.Center">
+                    <RadzenButton Text="Reset to Defaults" Icon="restore" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Medium" 
+                                 Click="@ResetDefaults" Disabled="@isSaving" />
+                    <RadzenButton Text="Save All Settings" Icon="save" ButtonStyle="ButtonStyle.Primary" Size="ButtonSize.Medium" 
+                                 ButtonType="ButtonType.Submit" Disabled="@isSaving" IsBusy="@isSaving" />
+                </RadzenStack>
+            </RadzenCard>
+        </RadzenTemplateForm>
     </RadzenCard>
 </RadzenStack>
 
@@ -158,7 +303,7 @@
         openAiTestStatus = null; smtpTestStatus = null;
         try
         {
-            var dict = new Dictionary<string,string>
+            var dict = new Dictionary<string, string>
             {
                 ["PlatformName"] = model.PlatformName,
                 ["Version"] = model.Version,
@@ -185,7 +330,7 @@
                 }
             }
             await Context.SaveChangesAsync();
-            NotificationService.Notify(NotificationSeverity.Success, "Saved", "Settings saved successfully.");
+            NotificationService.Notify(NotificationSeverity.Success, "Success", "All settings have been saved successfully.");
         }
         catch (Exception ex)
         {
@@ -211,15 +356,15 @@
             var resp = await http.GetAsync("https://api.openai.com/v1/models");
             if (resp.IsSuccessStatusCode)
             {
-                openAiTestStatus = "OK";
+                openAiTestStatus = "Connected";
                 openAiTestStyle = BadgeStyle.Success;
-                NotificationService.Notify(NotificationSeverity.Success, "OpenAI", "Connection successful.");
+                NotificationService.Notify(NotificationSeverity.Success, "OpenAI", "Connection successful! API key is valid.");
             }
             else
             {
                 openAiTestStatus = "Failed";
                 openAiTestStyle = BadgeStyle.Danger;
-                NotificationService.Notify(NotificationSeverity.Error, "OpenAI", $"Status: {(int)resp.StatusCode}");
+                NotificationService.Notify(NotificationSeverity.Error, "OpenAI", $"Connection failed with status: {(int)resp.StatusCode}");
             }
         }
         catch (Exception ex)
@@ -234,7 +379,8 @@
         }
     }
 
-    private bool CanTestSmtp() => !string.IsNullOrWhiteSpace(model.EmailServer) && model.EmailPort > 0 && !string.IsNullOrWhiteSpace(model.EmailUsername) && !string.IsNullOrWhiteSpace(model.EmailPassword);
+    private bool CanTestSmtp() => !string.IsNullOrWhiteSpace(model.EmailServer) && model.EmailPort > 0 && 
+                                   !string.IsNullOrWhiteSpace(model.EmailUsername) && !string.IsNullOrWhiteSpace(model.EmailPassword);
 
     private async Task TestSmtp()
     {
@@ -249,11 +395,11 @@
                 EnableSsl = true,
                 Credentials = new System.Net.NetworkCredential(model.EmailUsername, model.EmailPassword)
             };
-            var mail = new System.Net.Mail.MailMessage(model.EmailUsername, model.EmailUsername, "SMTP Test", "Test message from PeP settings page");
+            var mail = new System.Net.Mail.MailMessage(model.EmailUsername, model.EmailUsername, "PeP SMTP Test", "This is a test email from PeP settings page. If you received this, your SMTP configuration is correct!");
             await client.SendMailAsync(mail);
-            smtpTestStatus = "OK";
+            smtpTestStatus = "Sent";
             smtpTestStyle = BadgeStyle.Success;
-            NotificationService.Notify(NotificationSeverity.Success, "SMTP", "Test email sent successfully.");
+            NotificationService.Notify(NotificationSeverity.Success, "SMTP", "Test email sent successfully! Check your inbox.");
         }
         catch (Exception ex)
         {
@@ -269,12 +415,14 @@
 
     private async Task ResetDefaults()
     {
-        var confirm = await DialogService.Confirm("Reset all settings to defaults?", "Confirm Reset", new ConfirmOptions { OkButtonText = "Yes", CancelButtonText = "No" });
+        var confirm = await DialogService.Confirm("Are you sure you want to reset all settings to their default values?", "Confirm Reset", 
+            new ConfirmOptions { OkButtonText = "Yes, Reset", CancelButtonText = "Cancel" });
         if (confirm == true)
         {
             model = new SettingsModel();
-            openAiTestStatus = null; smtpTestStatus = null;
-            NotificationService.Notify(NotificationSeverity.Info, "Reset", "Defaults restored. Click Save to apply.");
+            openAiTestStatus = null; 
+            smtpTestStatus = null;
+            NotificationService.Notify(NotificationSeverity.Info, "Reset Complete", "All settings have been reset to defaults. Click 'Save All Settings' to apply.");
         }
     }
 

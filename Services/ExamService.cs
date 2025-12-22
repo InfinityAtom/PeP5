@@ -8,6 +8,7 @@ namespace PeP.Services
     public interface IExamService
     {
         Task<List<Exam>> GetExamsForTeacherAsync(string teacherId);
+        Task<List<Exam>> GetAllExamsForTeacherReportsAsync(string teacherId);
         Task<Exam?> GetExamByIdAsync(int examId);
         Task<ExamAttempt?> GetActiveExamAttemptAsync(string studentId, int examId);
         Task<ExamAttempt> StartExamAsync(string studentId, int examId, string examCode);
@@ -55,7 +56,23 @@ namespace PeP.Services
                 .Include(e => e.Questions)
                 .Include(e => e.ExamCodes)
                 .Include(e => e.ExamAttempts)
+                    .ThenInclude(ea => ea.Student)
                 .Where(e => e.CreatedByUserId == teacherId && e.IsActive)
+                .OrderByDescending(e => e.CreatedAt)
+                .ToListAsync();
+        }
+
+        public async Task<List<Exam>> GetAllExamsForTeacherReportsAsync(string teacherId)
+        {
+            await using var _context = await _contextFactory.CreateDbContextAsync();
+            // For reports, include ALL exams (active and inactive)
+            return await _context.Exams
+                .Include(e => e.Course)
+                .Include(e => e.Questions)
+                .Include(e => e.ExamCodes)
+                .Include(e => e.ExamAttempts)
+                    .ThenInclude(ea => ea.Student)
+                .Where(e => e.CreatedByUserId == teacherId)
                 .OrderByDescending(e => e.CreatedAt)
                 .ToListAsync();
         }

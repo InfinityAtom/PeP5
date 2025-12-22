@@ -7,6 +7,10 @@
              Width="320"
              d:DesignHeight="400">
 
+    <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVisibility"/>
+    </UserControl.Resources>
+
     <Border Background="#1E293B" 
             BorderBrush="#334155" 
             BorderThickness="1" 
@@ -260,8 +264,4 @@
             </Border>
         </Grid>
     </Border>
-    
-    <UserControl.Resources>
-        <BooleanToVisibilityConverter x:Key="BoolToVisibility"/>
-    </UserControl.Resources>
 </UserControl>

@@ -24,9 +24,16 @@ public partial class NetworkPanel : UserControl
 
     private async void OnLoaded(object sender, RoutedEventArgs e)
     {
-        await RefreshNetworksAsync();
-        UpdateCurrentConnection();
-        UpdateEthernetStatus();
+        try
+        {
+            UpdateCurrentConnection();
+            UpdateEthernetStatus();
+            await RefreshNetworksAsync();
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"Error in OnLoaded: {ex.Message}");
+        }
     }
 
     private void OnCloseClick(object sender, RoutedEventArgs e)
@@ -60,10 +67,18 @@ public partial class NetworkPanel : UserControl
 
     private async Task RefreshNetworksAsync()
     {
-        LoadingPanel.Visibility = Visibility.Visible;
-        NetworkList.Visibility = Visibility.Collapsed;
-        NoNetworksPanel.Visibility = Visibility.Collapsed;
-        RefreshButton.IsEnabled = false;
+        try
+        {
+            LoadingPanel.Visibility = Visibility.Visible;
+            NetworkList.Visibility = Visibility.Collapsed;
+            NoNetworksPanel.Visibility = Visibility.Collapsed;
+            RefreshButton.IsEnabled = false;
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"Error setting initial visibility: {ex.Message}");
+            return;
+        }
 
         try
         {
@@ -79,28 +94,39 @@ public partial class NetworkPanel : UserControl
 
             await Dispatcher.InvokeAsync(() =>
             {
-                NetworkList.ItemsSource = null;
-                NetworkList.ItemsSource = _networks;
-                
-                LoadingPanel.Visibility = Visibility.Collapsed;
-                
-                if (_networks.Count > 0)
+                try
                 {
-                    NetworkList.Visibility = Visibility.Visible;
-                    NoNetworksPanel.Visibility = Visibility.Collapsed;
+                    NetworkList.ItemsSource = null;
+                    NetworkList.ItemsSource = _networks;
+                    
+                    LoadingPanel.Visibility = Visibility.Collapsed;
+                    
+                    if (_networks.Count > 0)
+                    {
+                        NetworkList.Visibility = Visibility.Visible;
+                        NoNetworksPanel.Visibility = Visibility.Collapsed;
+                    }
+                    else
+                    {
+                        NetworkList.Visibility = Visibility.Collapsed;
+                        NoNetworksPanel.Visibility = Visibility.Visible;
+                    }
                 }
-                else
+                catch (Exception innerEx)
                 {
-                    NetworkList.Visibility = Visibility.Collapsed;
-                    NoNetworksPanel.Visibility = Visibility.Visible;
+                    Debug.WriteLine($"Error updating UI: {innerEx.Message}");
                 }
             });
         }
         catch (Exception ex)
         {
             Debug.WriteLine($"Error refreshing networks: {ex.Message}");
-            LoadingPanel.Visibility = Visibility.Collapsed;
-            NoNetworksPanel.Visibility = Visibility.Visible;
+            try
+            {
+                LoadingPanel.Visibility = Visibility.Collapsed;
+                NoNetworksPanel.Visibility = Visibility.Visible;
+            }
+            catch { }
         }
         finally
         {

@@ -85,7 +85,7 @@ namespace PeP.ViewModels
 
         [Display(Name = "Number of Questions")]
         [Range(1, 200)]
-        public int NumberOfQuestions { get; set; }
+        public int NumberOfQuestions { get; set; } = 10;
 
         [Display(Name = "Points per Question")]
         [Range(0.1, 100)]
@@ -120,6 +120,47 @@ namespace PeP.ViewModels
 
         [Display(Name = "Question Type")]
         public string QuestionType { get; set; } = "MultipleChoice";
+
+        // Manual Questions
+        public List<ManualQuestionViewModel> ManualQuestions { get; set; } = new();
+    }
+
+    public class ManualQuestionViewModel
+    {
+        public int TempId { get; set; } // Temporary ID for UI tracking
+        
+        [Required]
+        [Display(Name = "Question Text")]
+        [StringLength(2000)]
+        public string QuestionText { get; set; } = string.Empty;
+
+        [Display(Name = "Question Type")]
+        public string QuestionType { get; set; } = "MultipleChoice";
+
+        [Display(Name = "Points")]
+        [Range(0.1, 100)]
+        public decimal Points { get; set; } = 1.0m;
+
+        public List<ManualChoiceViewModel> Choices { get; set; } = new()
+        {
+            new() { TempId = 1, ChoiceText = "", IsCorrect = true },
+            new() { TempId = 2, ChoiceText = "", IsCorrect = false },
+            new() { TempId = 3, ChoiceText = "", IsCorrect = false },
+            new() { TempId = 4, ChoiceText = "", IsCorrect = false }
+        };
+    }
+
+    public class ManualChoiceViewModel
+    {
+        public int TempId { get; set; }
+        
+        [Required]
+        [Display(Name = "Choice Text")]
+        [StringLength(500)]
+        public string ChoiceText { get; set; } = string.Empty;
+
+        [Display(Name = "Is Correct")]
+        public bool IsCorrect { get; set; }
     }
 
     public class GenerateExamCodeViewModel

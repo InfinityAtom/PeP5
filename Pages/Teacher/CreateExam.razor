@@ -125,7 +125,8 @@
                                         <RadzenIcon Icon="smart_toy" Style="font-size:2.5rem;color:var(--rz-primary);" />
                                         <RadzenStack Gap="0.25rem">
                                             <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
-                                                <RadzenCheckBox @bind-Value="@examModel.UseAI" Name="useAI" />
+                                                <RadzenCheckBox @bind-Value="@examModel.UseAI" Name="useAI" TValue="bool" 
+                                                               Change="@((bool _) => OnCreationModeChanged())" />
                                                 <RadzenLabel Text="Enable AI Question Generation" Component="useAI" Style="font-weight:600;font-size:1.1rem;" />
                                             </RadzenStack>
                                             <RadzenText TextStyle="TextStyle.Caption" Style="margin-left:1.75rem;">Leverage OpenAI to automatically create programming exam questions based on your prompt.</RadzenText>
@@ -212,8 +213,116 @@
                                 else
                                 {
                                     <RadzenAlert AlertStyle="AlertStyle.Info" Icon="info">
-                                        <RadzenText>When AI is disabled, placeholder questions will be created that you can edit manually after exam creation.</RadzenText>
+                                        <RadzenText>When AI is disabled, you can manually create questions in the "Manual Questions" tab or placeholder questions will be created for you to edit later.</RadzenText>
                                     </RadzenAlert>
+                                }
+                            </RadzenStack>
+                        </RadzenTabsItem>
+
+                        <RadzenTabsItem Text="Manual Questions" Disabled="@examModel.UseAI">
+                            <RadzenStack Gap="1rem" Style="margin-top:1rem;">
+                                @if (examModel.UseAI)
+                                {
+                                    <RadzenAlert AlertStyle="AlertStyle.Warning" Icon="warning">
+                                        <RadzenText>Manual question editing is disabled when AI generation is enabled. Disable AI to manually add questions.</RadzenText>
+                                    </RadzenAlert>
+                                }
+                                else
+                                {
+                                    <RadzenCard Style="background:linear-gradient(135deg, var(--rz-success-lighter) 0%, var(--rz-info-lighter) 100%);padding:1rem;">
+                                        <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween" AlignItems="AlignItems.Center">
+                                            <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.75rem">
+                                                <RadzenIcon Icon="edit_note" Style="font-size:2rem;color:var(--rz-success);" />
+                                                <RadzenStack Gap="0.25rem">
+                                                    <RadzenText TextStyle="TextStyle.H6" Style="margin:0;">Manual Question Editor</RadzenText>
+                                                    <RadzenText TextStyle="TextStyle.Caption">Create and customize your exam questions manually.</RadzenText>
+                                                </RadzenStack>
+                                            </RadzenStack>
+                                            <RadzenBadge Text="@($"{examModel.ManualQuestions.Count} / {examModel.NumberOfQuestions} Questions")" 
+                                                        BadgeStyle="@(examModel.ManualQuestions.Count >= examModel.NumberOfQuestions ? BadgeStyle.Success : BadgeStyle.Warning)" />
+                                        </RadzenStack>
+                                    </RadzenCard>
+
+                                    @if (examModel.ManualQuestions.Any())
+                                    {
+                                        <RadzenStack Gap="1rem">
+                                            @foreach (var question in examModel.ManualQuestions)
+                                            {
+                                                var qIndex = examModel.ManualQuestions.IndexOf(question) + 1;
+                                                <RadzenCard Style="border-left:4px solid var(--rz-primary);">
+                                                    <RadzenStack Gap="0.75rem">
+                                                        <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween" AlignItems="AlignItems.Start">
+                                                            <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
+                                                                <RadzenBadge Text="@($"Q{qIndex}")" BadgeStyle="BadgeStyle.Primary" />
+                                                                <RadzenDropDown @bind-Value="@question.QuestionType" Data="@questionTypes" TextProperty="Text" ValueProperty="Value" 
+                                                                               Style="width:200px;" Placeholder="Question Type" />
+                                                                <RadzenNumeric @bind-Value="@question.Points" Min="0.1m" Max="100m" Format="0.0" Style="width:80px;" 
+                                                                              Placeholder="Pts" TValue="decimal" />
+                                                            </RadzenStack>
+                                                            <RadzenButton Icon="delete" ButtonStyle="ButtonStyle.Danger" Variant="Variant.Flat" Size="ButtonSize.Small" 
+                                                                         Click="@(() => RemoveQuestion(question))" Title="Remove Question" />
+                                                        </RadzenStack>
+
+                                                        <RadzenFormField Text="Question Text" Variant="Variant.Outlined" Style="width:100%;">
+                                                            <RadzenTextArea @bind-Value="@question.QuestionText" Rows="3" Placeholder="Enter your question here..." Style="width:100%;" />
+                                                        </RadzenFormField>
+
+                                                        <RadzenText TextStyle="TextStyle.Subtitle2" Style="margin:0.5rem 0 0.25rem 0;">Answer Choices:</RadzenText>
+                                                        <RadzenStack Gap="0.5rem">
+                                                            @foreach (var choice in question.Choices)
+                                                            {
+                                                                var currentChoice = choice;
+                                                                <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
+                                                                    @if (question.QuestionType == "MultipleAnswer")
+                                                                    {
+                                                                        <RadzenCheckBox @bind-Value="@currentChoice.IsCorrect" TValue="bool" />
+                                                                    }
+                                                                    else
+                                                                    {
+                                                                        <RadzenCheckBox Value="@currentChoice.IsCorrect" TValue="bool" 
+                                                                                       ValueChanged="@((bool val) => { if (val) SetSingleCorrectAnswer(question, currentChoice); })"
+                                                                                       Style="@(currentChoice.IsCorrect ? "" : "opacity:0.6;")" />
+                                                                    }
+                                                                    <RadzenTextBox @bind-Value="@currentChoice.ChoiceText" Placeholder="Enter choice text..." Style="flex:1;" />
+                                                                    @if (question.Choices.Count > 2)
+                                                                    {
+                                                                        <RadzenButton Icon="remove_circle" ButtonStyle="ButtonStyle.Light" Variant="Variant.Flat" Size="ButtonSize.Small"
+                                                                                     Click="@(() => RemoveChoice(question, currentChoice))" Title="Remove Choice" />
+                                                                    }
+                                                                </RadzenStack>
+                                                            }
+                                                        </RadzenStack>
+
+                                                        @if (question.Choices.Count < 8)
+                                                        {
+                                                            <RadzenButton Text="Add Choice" Icon="add" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small" Variant="Variant.Outlined"
+                                                                         Click="@(() => AddChoice(question))" />
+                                                        }
+                                                    </RadzenStack>
+                                                </RadzenCard>
+                                            }
+                                        </RadzenStack>
+                                    }
+                                    else
+                                    {
+                                        <RadzenCard Style="padding:3rem;text-align:center;background:var(--rz-base-100);">
+                                            <RadzenStack Gap="1rem" AlignItems="AlignItems.Center">
+                                                <RadzenIcon Icon="quiz" Style="font-size:4rem;color:var(--rz-text-disabled-color);" />
+                                                <RadzenText TextStyle="TextStyle.H6" class="text-muted">No Questions Added Yet</RadzenText>
+                                                <RadzenText TextStyle="TextStyle.Body2" class="text-muted">Click the button below to start adding questions manually.</RadzenText>
+                                            </RadzenStack>
+                                        </RadzenCard>
+                                    }
+
+                                    <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" JustifyContent="JustifyContent.Center">
+                                        <RadzenButton Text="Add Question" Icon="add_circle" ButtonStyle="ButtonStyle.Success" Click="@AddQuestion" 
+                                                     Disabled="@(examModel.ManualQuestions.Count >= examModel.NumberOfQuestions)" />
+                                        @if (examModel.ManualQuestions.Count < examModel.NumberOfQuestions)
+                                        {
+                                            <RadzenButton Text="Fill Remaining with Placeholders" Icon="auto_fix_high" ButtonStyle="ButtonStyle.Secondary" Variant="Variant.Outlined"
+                                                         Click="@FillWithPlaceholders" />
+                                        }
+                                    </RadzenStack>
                                 }
                             </RadzenStack>
                         </RadzenTabsItem>
@@ -240,6 +349,7 @@
     private List<Question> previewQuestions = new();
     private bool isCreating;
     private bool isGeneratingPreview;
+    private int nextQuestionTempId = 1;
 
     private readonly List<DropdownOption> scoringTypes = new()
     {
@@ -269,6 +379,101 @@
         {
             examModel.CourseId = courses.First().Id;
         }
+    }
+
+    private void OnCreationModeChanged()
+    {
+        // Clear manual questions when switching to AI mode
+        if (examModel.UseAI)
+        {
+            examModel.ManualQuestions.Clear();
+        }
+    }
+
+    private void AddQuestion()
+    {
+        if (examModel.ManualQuestions.Count >= examModel.NumberOfQuestions)
+        {
+            NotificationService.Notify(NotificationSeverity.Warning, "Limit Reached", $"Maximum {examModel.NumberOfQuestions} questions allowed.");
+            return;
+        }
+
+        examModel.ManualQuestions.Add(new ManualQuestionViewModel
+        {
+            TempId = nextQuestionTempId++,
+            Points = examModel.PointsPerQuestion,
+            QuestionType = examModel.QuestionType,
+            Choices = new List<ManualChoiceViewModel>
+            {
+                new() { TempId = 1, ChoiceText = "", IsCorrect = true },
+                new() { TempId = 2, ChoiceText = "", IsCorrect = false },
+                new() { TempId = 3, ChoiceText = "", IsCorrect = false },
+                new() { TempId = 4, ChoiceText = "", IsCorrect = false }
+            }
+        });
+    }
+
+    private void RemoveQuestion(ManualQuestionViewModel question)
+    {
+        examModel.ManualQuestions.Remove(question);
+    }
+
+    private void AddChoice(ManualQuestionViewModel question)
+    {
+        if (question.Choices.Count >= 8)
+        {
+            NotificationService.Notify(NotificationSeverity.Warning, "Limit", "Maximum 8 choices allowed per question.");
+            return;
+        }
+        var nextId = question.Choices.Any() ? question.Choices.Max(c => c.TempId) + 1 : 1;
+        question.Choices.Add(new ManualChoiceViewModel { TempId = nextId, ChoiceText = "", IsCorrect = false });
+    }
+
+    private void RemoveChoice(ManualQuestionViewModel question, ManualChoiceViewModel choice)
+    {
+        if (question.Choices.Count <= 2)
+        {
+            NotificationService.Notify(NotificationSeverity.Warning, "Minimum", "At least 2 choices are required.");
+            return;
+        }
+        question.Choices.Remove(choice);
+        // Ensure at least one correct answer
+        if (!question.Choices.Any(c => c.IsCorrect) && question.Choices.Any())
+        {
+            question.Choices.First().IsCorrect = true;
+        }
+    }
+
+    private void SetSingleCorrectAnswer(ManualQuestionViewModel question, ManualChoiceViewModel selectedChoice)
+    {
+        foreach (var choice in question.Choices)
+        {
+            choice.IsCorrect = choice == selectedChoice;
+        }
+    }
+
+    private void FillWithPlaceholders()
+    {
+        var remaining = examModel.NumberOfQuestions - examModel.ManualQuestions.Count;
+        for (int i = 0; i < remaining; i++)
+        {
+            var qNum = examModel.ManualQuestions.Count + 1;
+            examModel.ManualQuestions.Add(new ManualQuestionViewModel
+            {
+                TempId = nextQuestionTempId++,
+                QuestionText = $"Question {qNum}: [Edit this question]",
+                Points = examModel.PointsPerQuestion,
+                QuestionType = examModel.QuestionType,
+                Choices = new List<ManualChoiceViewModel>
+                {
+                    new() { TempId = 1, ChoiceText = "Option A", IsCorrect = true },
+                    new() { TempId = 2, ChoiceText = "Option B", IsCorrect = false },
+                    new() { TempId = 3, ChoiceText = "Option C", IsCorrect = false },
+                    new() { TempId = 4, ChoiceText = "Option D", IsCorrect = false }
+                }
+            });
+        }
+        NotificationService.Notify(NotificationSeverity.Info, "Placeholders Added", $"Added {remaining} placeholder questions.");
     }
 
     private async Task HandleSubmit() => await SaveExamAsync(false);
@@ -350,9 +555,21 @@
                     examModel.QuestionType,
                     examModel.PointsPerQuestion);
             }
+            else if (examModel.ManualQuestions.Any())
+            {
+                // Use manually created questions
+                questions = ConvertManualQuestions();
+                
+                // Fill remaining with placeholders if needed
+                var remaining = examModel.NumberOfQuestions - questions.Count;
+                if (remaining > 0)
+                {
+                    questions.AddRange(CreatePlaceholderQuestions(remaining, examModel.PointsPerQuestion, questions.Count));
+                }
+            }
             else
             {
-                questions = CreatePlaceholderQuestions(examModel.NumberOfQuestions, examModel.PointsPerQuestion);
+                questions = CreatePlaceholderQuestions(examModel.NumberOfQuestions, examModel.PointsPerQuestion, 0);
             }
 
             foreach (var q in questions)
@@ -376,17 +593,59 @@
         }
     }
 
-    private List<Question> CreatePlaceholderQuestions(int count, decimal points)
+    private List<Question> ConvertManualQuestions()
+    {
+        var list = new List<Question>();
+        int order = 1;
+        foreach (var mq in examModel.ManualQuestions)
+        {
+            var question = new Question
+            {
+                QuestionText = string.IsNullOrWhiteSpace(mq.QuestionText) ? $"Question {order}: [Edit this question]" : mq.QuestionText,
+                QuestionType = mq.QuestionType == "MultipleAnswer" ? QuestionType.MultipleAnswer : QuestionType.MultipleChoice,
+                Points = mq.Points,
+                Order = order++,
+                Choices = new List<QuestionChoice>()
+            };
+
+            int choiceOrder = 1;
+            foreach (var mc in mq.Choices.Where(c => !string.IsNullOrWhiteSpace(c.ChoiceText)))
+            {
+                question.Choices.Add(new QuestionChoice
+                {
+                    ChoiceText = mc.ChoiceText,
+                    IsCorrect = mc.IsCorrect,
+                    Order = choiceOrder++
+                });
+            }
+
+            // Ensure at least 2 choices with placeholder text if needed
+            while (question.Choices.Count < 2)
+            {
+                question.Choices.Add(new QuestionChoice
+                {
+                    ChoiceText = $"Option {(char)('A' + question.Choices.Count)}",
+                    IsCorrect = question.Choices.Count == 0,
+                    Order = question.Choices.Count + 1
+                });
+            }
+
+            list.Add(question);
+        }
+        return list;
+    }
+
+    private List<Question> CreatePlaceholderQuestions(int count, decimal points, int startOrder)
     {
         var list = new List<Question>();
         for (int i = 1; i <= count; i++)
         {
             list.Add(new Question
             {
-                QuestionText = $"Question {i}: [Edit this question]",
+                QuestionText = $"Question {startOrder + i}: [Edit this question]",
                 QuestionType = examModel.QuestionType == "MultipleAnswer" ? QuestionType.MultipleAnswer : QuestionType.MultipleChoice,
                 Points = points,
-                Order = i,
+                Order = startOrder + i,
                 Choices = new List<QuestionChoice>
                 {
                     new() { ChoiceText = "Option A", IsCorrect = true, Order = 1 },
