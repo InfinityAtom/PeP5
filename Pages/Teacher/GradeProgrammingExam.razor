@@ -1,0 +1,325 @@
+@page "/teacher/grade-programming-exam/{AttemptId:int}"
+@using Microsoft.AspNetCore.Components.Authorization
+@attribute [Authorize(Roles = UserRoles.Teacher)]
+@inject IProgrammingExamService ProgrammingExamService
+@inject IOpenAIService OpenAIService
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject UserManager<ApplicationUser> UserManager
+@inject NavigationManager Navigation
+@inject NotificationService NotificationService
+@inject DialogService DialogService
+
+<PageTitle>Grade Submission - PeP v5.0</PageTitle>
+
+@if (isLoading)
+{
+    <div style="display: flex; justify-content: center; align-items: center; height: 60vh;">
+        <RadzenStack Gap="1rem" AlignItems="AlignItems.Center">
+            <RadzenProgressBarCircular ShowValue="false" Mode="ProgressBarMode.Indeterminate" Size="ProgressBarCircularSize.Large" />
+            <RadzenText TextStyle="TextStyle.H6">Loading submission...</RadzenText>
+        </RadzenStack>
+    </div>
+}
+else if (attempt == null)
+{
+    <RadzenCard class="rz-p-4">
+        <RadzenStack Gap="1rem" AlignItems="AlignItems.Center">
+            <RadzenIcon Icon="error_outline" Style="font-size: 4rem; color: var(--rz-danger);" />
+            <RadzenText TextStyle="TextStyle.H5">Submission Not Found</RadzenText>
+            <RadzenButton Text="Back to Exams" Icon="arrow_back" Click="@(() => Navigation.NavigateTo("/teacher/exams"))" />
+        </RadzenStack>
+    </RadzenCard>
+}
+else
+{
+    <RadzenCard class="rz-mb-4">
+        <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween" AlignItems="AlignItems.Center">
+            <RadzenStack Gap="0.25rem">
+                <RadzenText TextStyle="TextStyle.H4" Style="margin: 0;">@attempt.ProgrammingExam.Title</RadzenText>
+                <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" AlignItems="AlignItems.Center">
+                    <RadzenIcon Icon="person" Style="font-size: 1rem;" />
+                    <RadzenText TextStyle="TextStyle.Body2" class="text-muted">
+                        @attempt.Student.FirstName @attempt.Student.LastName (@attempt.Student.StudentId)
+                    </RadzenText>
+                    <RadzenBadge Text="@attempt.Status.ToString()" 
+                                 BadgeStyle="@(attempt.Status == ProgrammingExamStatus.Completed ? BadgeStyle.Success : BadgeStyle.Warning)" />
+                </RadzenStack>
+            </RadzenStack>
+            <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem">
+                @if (isEvaluating)
+                {
+                    <RadzenButton Text="Evaluating..." Icon="hourglass_empty" ButtonStyle="ButtonStyle.Secondary" Disabled="true" />
+                }
+                else
+                {
+                    <RadzenButton Text="Re-evaluate with AI" Icon="smart_toy" ButtonStyle="ButtonStyle.Info" Click="@ReEvaluateWithAI" />
+                }
+                <RadzenButton Text="Save Grades" Icon="save" ButtonStyle="ButtonStyle.Primary" Click="@SaveGrades" />
+                <RadzenButton Text="Back" Icon="arrow_back" ButtonStyle="ButtonStyle.Light" Click="@(() => Navigation.NavigateTo("/teacher/exams"))" />
+            </RadzenStack>
+        </RadzenStack>
+    </RadzenCard>
+
+    <!-- Summary Card -->
+    <RadzenRow Gap="1rem" class="rz-mb-4">
+        <RadzenColumn Size="12" SizeMD="3">
+            <RadzenCard Style="text-align: center;">
+                <RadzenStack AlignItems="AlignItems.Center" Gap="0.5rem">
+                    <RadzenText TextStyle="TextStyle.Body2" class="text-muted">Total Score</RadzenText>
+                    <RadzenText TextStyle="TextStyle.H3" Style="margin:0; color: var(--rz-primary);">
+                        @attempt.TotalScore.ToString("0.0") / @attempt.ProgrammingExam.TotalPoints
+                    </RadzenText>
+                    <RadzenText TextStyle="TextStyle.Caption">
+                        @((attempt.TotalScore / attempt.ProgrammingExam.TotalPoints * 100).ToString("0.0"))%
+                    </RadzenText>
+                </RadzenStack>
+            </RadzenCard>
+        </RadzenColumn>
+        <RadzenColumn Size="12" SizeMD="3">
+            <RadzenCard Style="text-align: center;">
+                <RadzenStack AlignItems="AlignItems.Center" Gap="0.5rem">
+                    <RadzenText TextStyle="TextStyle.Body2" class="text-muted">Tasks Completed</RadzenText>
+                    <RadzenText TextStyle="TextStyle.H3" Style="margin:0;">
+                        @attempt.TaskProgress.Count(tp => tp.AIScore.HasValue) / @attempt.TaskProgress.Count
+                    </RadzenText>
+                    <RadzenText TextStyle="TextStyle.Caption">AI Evaluated</RadzenText>
+                </RadzenStack>
+            </RadzenCard>
+        </RadzenColumn>
+        <RadzenColumn Size="12" SizeMD="3">
+            <RadzenCard Style="text-align: center;">
+                <RadzenStack AlignItems="AlignItems.Center" Gap="0.5rem">
+                    <RadzenText TextStyle="TextStyle.Body2" class="text-muted">Submitted At</RadzenText>
+                    <RadzenText TextStyle="TextStyle.H5" Style="margin:0;">
+                        @(attempt.SubmittedAt?.ToString("MMM dd, HH:mm") ?? "Not Submitted")
+                    </RadzenText>
+                    <RadzenText TextStyle="TextStyle.Caption">@(attempt.SubmittedAt?.ToString("yyyy"))</RadzenText>
+                </RadzenStack>
+            </RadzenCard>
+        </RadzenColumn>
+        <RadzenColumn Size="12" SizeMD="3">
+            <RadzenCard Style="text-align: center;">
+                <RadzenStack AlignItems="AlignItems.Center" Gap="0.5rem">
+                    <RadzenText TextStyle="TextStyle.Body2" class="text-muted">Files Submitted</RadzenText>
+                    <RadzenText TextStyle="TextStyle.H3" Style="margin:0;">@attempt.StudentFiles.Count</RadzenText>
+                    <RadzenText TextStyle="TextStyle.Caption">Source Files</RadzenText>
+                </RadzenStack>
+            </RadzenCard>
+        </RadzenColumn>
+    </RadzenRow>
+
+    <!-- Task Evaluations -->
+    <RadzenText TextStyle="TextStyle.H5" class="rz-mb-3">Task Evaluations</RadzenText>
+    
+    @foreach (var taskProgress in attempt.TaskProgress.OrderBy(tp => tp.ProgrammingTask.Order))
+    {
+        <RadzenCard class="rz-mb-4">
+            <RadzenStack Gap="1rem">
+                <!-- Task Header -->
+                <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween" AlignItems="AlignItems.Start">
+                    <RadzenStack Gap="0.25rem">
+                        <RadzenText TextStyle="TextStyle.H6" Style="margin:0;">
+                            Task @taskProgress.ProgrammingTask.Order: @taskProgress.ProgrammingTask.Title
+                        </RadzenText>
+                        <RadzenText TextStyle="TextStyle.Body2" class="text-muted">
+                            @taskProgress.ProgrammingTask.Instructions
+                        </RadzenText>
+                    </RadzenStack>
+                    <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" AlignItems="AlignItems.Center">
+                        @if (taskProgress.AIEvaluatedAt.HasValue)
+                        {
+                            <RadzenBadge Text="AI Evaluated" BadgeStyle="BadgeStyle.Success" />
+                        }
+                        else
+                        {
+                            <RadzenBadge Text="Pending" BadgeStyle="BadgeStyle.Warning" />
+                        }
+                    </RadzenStack>
+                </RadzenStack>
+
+                <!-- Score Section -->
+                @if (taskProgress.AIScore.HasValue)
+                {
+                    <RadzenRow Gap="1rem">
+                        <RadzenColumn Size="12" SizeMD="6">
+                            <RadzenFieldset Text="AI Score">
+                                <RadzenStack Orientation="Orientation.Horizontal" Gap="1rem" AlignItems="AlignItems.Center">
+                                    <RadzenStack AlignItems="AlignItems.Center">
+                                        <RadzenText TextStyle="TextStyle.H4" Style="margin:0; color: var(--rz-primary);">
+                                            @taskProgress.AIScore.Value.ToString("0.0")
+                                        </RadzenText>
+                                        <RadzenText TextStyle="TextStyle.Caption">/ @taskProgress.ProgrammingTask.Points pts</RadzenText>
+                                    </RadzenStack>
+                                    <RadzenStack Gap="0.5rem" Style="flex: 1;">
+                                        <RadzenProgressBar Value="@((double)(taskProgress.CorrectnessScore ?? 0))" Max="100" 
+                                                           Style="height: 8px;" ShowValue="false" />
+                                        <RadzenText TextStyle="TextStyle.Caption">Correctness: @(taskProgress.CorrectnessScore?.ToString("0") ?? "N/A")%</RadzenText>
+                                        
+                                        <RadzenProgressBar Value="@((double)(taskProgress.CodeQualityScore ?? 0))" Max="100" 
+                                                           Style="height: 8px;" ProgressBarStyle="ProgressBarStyle.Info" ShowValue="false" />
+                                        <RadzenText TextStyle="TextStyle.Caption">Code Quality: @(taskProgress.CodeQualityScore?.ToString("0") ?? "N/A")%</RadzenText>
+                                        
+                                        <RadzenProgressBar Value="@((double)(taskProgress.EfficiencyScore ?? 0))" Max="100" 
+                                                           Style="height: 8px;" ProgressBarStyle="ProgressBarStyle.Warning" ShowValue="false" />
+                                        <RadzenText TextStyle="TextStyle.Caption">Efficiency: @(taskProgress.EfficiencyScore?.ToString("0") ?? "N/A")%</RadzenText>
+                                    </RadzenStack>
+                                </RadzenStack>
+                            </RadzenFieldset>
+                        </RadzenColumn>
+                        <RadzenColumn Size="12" SizeMD="6">
+                            <RadzenFieldset Text="Final Grade (Teacher Override)">
+                                <RadzenStack Orientation="Orientation.Horizontal" Gap="1rem" AlignItems="AlignItems.Center">
+                                    <RadzenNumeric @bind-Value="@taskProgress.PointsEarned" 
+                                                   Min="0" Max="@taskProgress.ProgrammingTask.Points" 
+                                                   Step="0.5m" Style="width: 100px;" />
+                                    <RadzenText>/ @taskProgress.ProgrammingTask.Points points</RadzenText>
+                                </RadzenStack>
+                            </RadzenFieldset>
+                        </RadzenColumn>
+                    </RadzenRow>
+                }
+                else
+                {
+                    <RadzenAlert AlertStyle="AlertStyle.Warning" Variant="Variant.Flat" Shade="Shade.Lighter">
+                        <RadzenIcon Icon="info" /> This task has not been evaluated by AI yet. Click "Re-evaluate with AI" to generate feedback.
+                    </RadzenAlert>
+                }
+
+                <!-- AI Feedback -->
+                @if (!string.IsNullOrWhiteSpace(taskProgress.AIFeedback))
+                {
+                    <RadzenFieldset Text="AI Feedback" Style="background: var(--rz-base-200);">
+                        <div style="white-space: pre-wrap; font-family: inherit;">@((MarkupString)FormatMarkdown(taskProgress.AIFeedback))</div>
+                    </RadzenFieldset>
+                }
+
+                <!-- Teacher Notes -->
+                <RadzenFieldset Text="Teacher Notes">
+                    <RadzenTextArea @bind-Value="@taskProgress.TeacherNotes" 
+                                    Rows="3" 
+                                    Placeholder="Add additional feedback or notes for the student..."
+                                    Style="width: 100%;" />
+                </RadzenFieldset>
+            </RadzenStack>
+        </RadzenCard>
+    }
+
+    <!-- Student Files -->
+    <RadzenText TextStyle="TextStyle.H5" class="rz-mb-3">Submitted Files</RadzenText>
+    <RadzenCard>
+        <RadzenTabs>
+            <Tabs>
+                @foreach (var file in attempt.StudentFiles.OrderBy(f => f.FilePath))
+                {
+                    <RadzenTabsItem Text="@file.FileName" Icon="description">
+                        <RadzenText TextStyle="TextStyle.Caption" class="text-muted rz-mb-2">@file.FilePath</RadzenText>
+                        <pre style="background: #1e1e1e; color: #d4d4d4; padding: 1rem; border-radius: 4px; overflow-x: auto; font-size: 13px; max-height: 400px;">@file.Content</pre>
+                    </RadzenTabsItem>
+                }
+            </Tabs>
+        </RadzenTabs>
+    </RadzenCard>
+}
+
+@code {
+    [Parameter] public int AttemptId { get; set; }
+
+    private ProgrammingExamAttempt? attempt;
+    private bool isLoading = true;
+    private bool isEvaluating = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAttempt();
+    }
+
+    private async Task LoadAttempt()
+    {
+        isLoading = true;
+        try
+        {
+            attempt = await ProgrammingExamService.GetAttemptWithEvaluationAsync(AttemptId);
+        }
+        catch (Exception ex)
+        {
+            NotificationService.Notify(NotificationSeverity.Error, "Error", $"Failed to load submission: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task ReEvaluateWithAI()
+    {
+        isEvaluating = true;
+        StateHasChanged();
+
+        try
+        {
+            NotificationService.Notify(NotificationSeverity.Info, "AI Evaluation", "Evaluating submission with AI. This may take a moment...");
+            
+            var success = await ProgrammingExamService.EvaluateAttemptWithAIAsync(AttemptId);
+            
+            if (success)
+            {
+                await LoadAttempt();
+                NotificationService.Notify(NotificationSeverity.Success, "Success", "AI evaluation completed successfully!");
+            }
+            else
+            {
+                NotificationService.Notify(NotificationSeverity.Error, "Error", "AI evaluation failed. Please try again.");
+            }
+        }
+        catch (Exception ex)
+        {
+            NotificationService.Notify(NotificationSeverity.Error, "Error", $"AI evaluation failed: {ex.Message}");
+        }
+        finally
+        {
+            isEvaluating = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task SaveGrades()
+    {
+        if (attempt == null) return;
+
+        try
+        {
+            var grades = attempt.TaskProgress.Select(tp => new TaskGradeUpdate
+            {
+                TaskProgressId = tp.Id,
+                PointsEarned = tp.PointsEarned,
+                TeacherNotes = tp.TeacherNotes
+            }).ToList();
+
+            var success = await ProgrammingExamService.SaveTaskGradesAsync(attempt.Id, grades);
+            
+            if (success)
+            {
+                NotificationService.Notify(NotificationSeverity.Success, "Saved", "Grades have been saved successfully!");
+            }
+            else
+            {
+                NotificationService.Notify(NotificationSeverity.Error, "Error", "Failed to save grades. Please try again.");
+            }
+        }
+        catch (Exception ex)
+        {
+            NotificationService.Notify(NotificationSeverity.Error, "Error", $"Failed to save grades: {ex.Message}");
+        }
+    }
+
+    private string FormatMarkdown(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return string.Empty;
+        
+        // Simple markdown-like formatting
+        var result = System.Net.WebUtility.HtmlEncode(text);
+        result = System.Text.RegularExpressions.Regex.Replace(result, @"\*\*(.*?)\*\*", "<strong>$1</strong>");
+        result = result.Replace("\n", "<br/>");
+        return result;
+    }
+}

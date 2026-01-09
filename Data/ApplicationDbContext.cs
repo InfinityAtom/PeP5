@@ -21,6 +21,19 @@ namespace PeP.Data
         public DbSet<ExamAppLaunchSession> ExamAppLaunchSessions { get; set; }
         public DbSet<PlatformSetting> PlatformSettings { get; set; }
 
+        // Programming Exam entities
+        public DbSet<ProgrammingExam> ProgrammingExams { get; set; }
+        public DbSet<ProgrammingTask> ProgrammingTasks { get; set; }
+        public DbSet<TestCase> TestCases { get; set; }
+        public DbSet<ProjectFile> ProjectFiles { get; set; }
+        public DbSet<ProgrammingExamAttempt> ProgrammingExamAttempts { get; set; }
+        public DbSet<StudentProjectFile> StudentProjectFiles { get; set; }
+        public DbSet<TaskProgress> TaskProgresses { get; set; }
+        public DbSet<TestCaseResult> TestCaseResults { get; set; }
+        public DbSet<CodeSubmission> CodeSubmissions { get; set; }
+        public DbSet<ConsoleHistory> ConsoleHistories { get; set; }
+        public DbSet<ProgrammingExamCode> ProgrammingExamCodes { get; set; }
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
@@ -102,7 +115,15 @@ namespace PeP.Data
                 .HasOne(a => a.ExamCode)
                 .WithMany()
                 .HasForeignKey(a => a.ExamCodeId)
-                .OnDelete(DeleteBehavior.Cascade);
+                .OnDelete(DeleteBehavior.Restrict)
+                .IsRequired(false);
+
+            modelBuilder.Entity<ExamAppAuthorization>()
+                .HasOne(a => a.ProgrammingExamCode)
+                .WithMany()
+                .HasForeignKey(a => a.ProgrammingExamCodeId)
+                .OnDelete(DeleteBehavior.Restrict)
+                .IsRequired(false);
 
             modelBuilder.Entity<ExamAppLaunchSession>()
                 .HasOne(s => s.Student)
@@ -114,7 +135,15 @@ namespace PeP.Data
                 .HasOne(s => s.ExamAttempt)
                 .WithMany()
                 .HasForeignKey(s => s.ExamAttemptId)
-                .OnDelete(DeleteBehavior.Cascade);
+                .OnDelete(DeleteBehavior.Cascade)
+                .IsRequired(false);
+
+            modelBuilder.Entity<ExamAppLaunchSession>()
+                .HasOne(s => s.ProgrammingExamAttempt)
+                .WithMany()
+                .HasForeignKey(s => s.ProgrammingExamAttemptId)
+                .OnDelete(DeleteBehavior.Restrict)
+                .IsRequired(false);
 
             // Configure decimal precision
             modelBuilder.Entity<Exam>()
@@ -168,6 +197,139 @@ namespace PeP.Data
                 new PlatformSetting { Id = 9, Key = "EmailUsername", Value = "" },
                 new PlatformSetting { Id = 10, Key = "EmailPassword", Value = "" }
             );
+
+            // ===== Programming Exam Configurations =====
+
+            // ProgrammingExam
+            modelBuilder.Entity<ProgrammingExam>()
+                .HasOne(pe => pe.Course)
+                .WithMany()
+                .HasForeignKey(pe => pe.CourseId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<ProgrammingExam>()
+                .HasOne(pe => pe.CreatedBy)
+                .WithMany()
+                .HasForeignKey(pe => pe.CreatedByUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<ProgrammingExam>()
+                .Property(pe => pe.TotalPoints)
+                .HasColumnType("decimal(18,2)");
+
+            // ProgrammingTask
+            modelBuilder.Entity<ProgrammingTask>()
+                .HasOne(pt => pt.ProgrammingExam)
+                .WithMany(pe => pe.Tasks)
+                .HasForeignKey(pt => pt.ProgrammingExamId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<ProgrammingTask>()
+                .Property(pt => pt.Points)
+                .HasColumnType("decimal(18,2)");
+
+            // TestCase
+            modelBuilder.Entity<TestCase>()
+                .HasOne(tc => tc.ProgrammingTask)
+                .WithMany(pt => pt.TestCases)
+                .HasForeignKey(tc => tc.ProgrammingTaskId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<TestCase>()
+                .Property(tc => tc.Points)
+                .HasColumnType("decimal(18,2)");
+
+            // ProjectFile
+            modelBuilder.Entity<ProjectFile>()
+                .HasOne(pf => pf.ProgrammingExam)
+                .WithMany(pe => pe.StarterFiles)
+                .HasForeignKey(pf => pf.ProgrammingExamId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // ProgrammingExamAttempt
+            modelBuilder.Entity<ProgrammingExamAttempt>()
+                .HasOne(pea => pea.Student)
+                .WithMany()
+                .HasForeignKey(pea => pea.StudentId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<ProgrammingExamAttempt>()
+                .HasOne(pea => pea.ProgrammingExam)
+                .WithMany(pe => pe.Attempts)
+                .HasForeignKey(pea => pea.ProgrammingExamId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<ProgrammingExamAttempt>()
+                .Property(pea => pea.TotalScore)
+                .HasColumnType("decimal(18,2)");
+
+            // StudentProjectFile
+            modelBuilder.Entity<StudentProjectFile>()
+                .HasOne(spf => spf.ProgrammingExamAttempt)
+                .WithMany(pea => pea.StudentFiles)
+                .HasForeignKey(spf => spf.ProgrammingExamAttemptId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // TaskProgress
+            modelBuilder.Entity<TaskProgress>()
+                .HasOne(tp => tp.ProgrammingExamAttempt)
+                .WithMany(pea => pea.TaskProgress)
+                .HasForeignKey(tp => tp.ProgrammingExamAttemptId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<TaskProgress>()
+                .HasOne(tp => tp.ProgrammingTask)
+                .WithMany()
+                .HasForeignKey(tp => tp.ProgrammingTaskId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<TaskProgress>()
+                .Property(tp => tp.PointsEarned)
+                .HasColumnType("decimal(18,2)");
+
+            // TestCaseResult
+            modelBuilder.Entity<TestCaseResult>()
+                .HasOne(tcr => tcr.TaskProgress)
+                .WithMany(tp => tp.TestCaseResults)
+                .HasForeignKey(tcr => tcr.TaskProgressId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<TestCaseResult>()
+                .HasOne(tcr => tcr.TestCase)
+                .WithMany()
+                .HasForeignKey(tcr => tcr.TestCaseId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // CodeSubmission
+            modelBuilder.Entity<CodeSubmission>()
+                .HasOne(cs => cs.ProgrammingExamAttempt)
+                .WithMany(pea => pea.Submissions)
+                .HasForeignKey(cs => cs.ProgrammingExamAttemptId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // ConsoleHistory
+            modelBuilder.Entity<ConsoleHistory>()
+                .HasOne(ch => ch.ProgrammingExamAttempt)
+                .WithMany(pea => pea.ConsoleHistory)
+                .HasForeignKey(ch => ch.ProgrammingExamAttemptId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // ProgrammingExamCode
+            modelBuilder.Entity<ProgrammingExamCode>()
+                .HasOne(pec => pec.ProgrammingExam)
+                .WithMany(pe => pe.ExamCodes)
+                .HasForeignKey(pec => pec.ProgrammingExamId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<ProgrammingExamCode>()
+                .HasOne(pec => pec.CreatedBy)
+                .WithMany()
+                .HasForeignKey(pec => pec.CreatedByUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<ProgrammingExamCode>()
+                .HasIndex(pec => pec.Code)
+                .IsUnique();
         }
     }
 }

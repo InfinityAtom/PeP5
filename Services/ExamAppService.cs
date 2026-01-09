@@ -14,7 +14,8 @@ namespace PeP.Services
         string ExamTitle,
         string? CourseName,
         int DurationMinutes,
-        string TeacherName);
+        string TeacherName,
+        bool IsProgrammingExam = false);
 
     public record ExamAppAuthorizeResult(
         bool Success,
@@ -28,14 +29,15 @@ namespace PeP.Services
         string? Error,
         int? AttemptId,
         string? LaunchToken,
-        DateTime? ExpiresAtUtc);
+        DateTime? ExpiresAtUtc,
+        bool IsProgrammingExam = false);
 
     public interface IExamAppService
     {
         Task<ExamAppExamInfo?> GetExamInfoForCodeAsync(string code);
         Task<ExamAppAuthorizeResult> AuthorizeAsync(string studentId, string code, string teacherPassword);
         Task<ExamAppStartResult> StartAsync(string studentId, string authorizationToken);
-        Task<bool> ValidateLaunchTokenAsync(int attemptId, string studentId, string launchToken);
+        Task<bool> ValidateLaunchTokenAsync(int attemptId, string studentId, string launchToken, bool isProgrammingExam = false);
     }
 
     public class ExamAppService : IExamAppService
@@ -44,6 +46,7 @@ namespace PeP.Services
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly SignInManager<ApplicationUser> _signInManager;
         private readonly IExamService _examService;
+        private readonly IProgrammingExamService _programmingExamService;
         private readonly ILogger<ExamAppService> _logger;
 
         public ExamAppService(
@@ -51,12 +54,14 @@ namespace PeP.Services
             UserManager<ApplicationUser> userManager,
             SignInManager<ApplicationUser> signInManager,
             IExamService examService,
+            IProgrammingExamService programmingExamService,
             ILogger<ExamAppService> logger)
         {
             _contextFactory = contextFactory;
             _userManager = userManager;
             _signInManager = signInManager;
             _examService = examService;
+            _programmingExamService = programmingExamService;
             _logger = logger;
         }
 
@@ -68,6 +73,7 @@ namespace PeP.Services
 
             await using var context = await _contextFactory.CreateDbContextAsync();
 
+            // First check regular exam codes
             var examCode = await context.ExamCodes
                 .Include(ec => ec.Exam)
                     .ThenInclude(e => e.Course)
@@ -75,25 +81,56 @@ namespace PeP.Services
                     .ThenInclude(e => e.CreatedBy)
                 .FirstOrDefaultAsync(ec => ec.Code == normalizedCode);
 
-            if (examCode == null) return null;
-            if (!examCode.IsActive) return null;
-            if (!examCode.Exam.IsActive) return null;
-            if (examCode.ExpiresAt < DateTime.UtcNow) return null;
-            if (examCode.MaxUses.HasValue && examCode.TimesUsed >= examCode.MaxUses.Value) return null;
-
-            var teacherName = examCode.Exam.CreatedBy?.FullName;
-            if (string.IsNullOrWhiteSpace(teacherName))
+            if (examCode != null && examCode.IsActive && examCode.Exam.IsActive && 
+                examCode.ExpiresAt >= DateTime.UtcNow &&
+                (!examCode.MaxUses.HasValue || examCode.TimesUsed < examCode.MaxUses.Value))
             {
-                teacherName = examCode.Exam.CreatedBy?.Email ?? "Teacher";
+                var teacherName = examCode.Exam.CreatedBy?.FullName;
+                if (string.IsNullOrWhiteSpace(teacherName))
+                {
+                    teacherName = examCode.Exam.CreatedBy?.Email ?? "Teacher";
+                }
+
+                return new ExamAppExamInfo(
+                    ExamId: examCode.ExamId,
+                    ExamCodeId: examCode.Id,
+                    ExamTitle: examCode.Exam.Title,
+                    CourseName: examCode.Exam.Course?.Name,
+                    DurationMinutes: examCode.Exam.DurationMinutes,
+                    TeacherName: teacherName,
+                    IsProgrammingExam: false);
             }
 
-            return new ExamAppExamInfo(
-                ExamId: examCode.ExamId,
-                ExamCodeId: examCode.Id,
-                ExamTitle: examCode.Exam.Title,
-                CourseName: examCode.Exam.Course?.Name,
-                DurationMinutes: examCode.Exam.DurationMinutes,
-                TeacherName: teacherName);
+            // Then check programming exam codes
+            var programmingExamCode = await context.ProgrammingExamCodes
+                .Include(ec => ec.ProgrammingExam)
+                    .ThenInclude(pe => pe.Course)
+                .Include(ec => ec.ProgrammingExam)
+                    .ThenInclude(pe => pe.CreatedBy)
+                .FirstOrDefaultAsync(ec => ec.Code == normalizedCode);
+
+            if (programmingExamCode != null && programmingExamCode.IsActive && 
+                programmingExamCode.ProgrammingExam.IsActive &&
+                programmingExamCode.ExpiresAt >= DateTime.UtcNow &&
+                (!programmingExamCode.MaxUses.HasValue || programmingExamCode.TimesUsed < programmingExamCode.MaxUses.Value))
+            {
+                var teacherName = programmingExamCode.ProgrammingExam.CreatedBy?.FullName;
+                if (string.IsNullOrWhiteSpace(teacherName))
+                {
+                    teacherName = programmingExamCode.ProgrammingExam.CreatedBy?.Email ?? "Teacher";
+                }
+
+                return new ExamAppExamInfo(
+                    ExamId: programmingExamCode.ProgrammingExamId,
+                    ExamCodeId: programmingExamCode.Id,
+                    ExamTitle: programmingExamCode.ProgrammingExam.Title,
+                    CourseName: programmingExamCode.ProgrammingExam.Course?.Name,
+                    DurationMinutes: programmingExamCode.ProgrammingExam.DurationMinutes,
+                    TeacherName: teacherName,
+                    IsProgrammingExam: true);
+            }
+
+            return null;
         }
 
         public async Task<ExamAppAuthorizeResult> AuthorizeAsync(string studentId, string code, string teacherPassword)
@@ -123,13 +160,30 @@ namespace PeP.Services
             {
                 await using var context = await _contextFactory.CreateDbContextAsync();
 
-                var exam = await context.Exams.FirstOrDefaultAsync(e => e.Id == examInfo.ExamId);
-                if (exam == null || !exam.IsActive)
+                string? teacherId = null;
+
+                if (examInfo.IsProgrammingExam)
                 {
-                    return new ExamAppAuthorizeResult(false, "Exam is not available.", null, null, null);
+                    // Look up programming exam for teacher ID
+                    var programmingExam = await context.ProgrammingExams.FirstOrDefaultAsync(e => e.Id == examInfo.ExamId);
+                    if (programmingExam == null || !programmingExam.IsActive)
+                    {
+                        return new ExamAppAuthorizeResult(false, "Exam is not available.", null, null, null);
+                    }
+                    teacherId = programmingExam.CreatedByUserId;
+                }
+                else
+                {
+                    // Look up regular exam for teacher ID
+                    var exam = await context.Exams.FirstOrDefaultAsync(e => e.Id == examInfo.ExamId);
+                    if (exam == null || !exam.IsActive)
+                    {
+                        return new ExamAppAuthorizeResult(false, "Exam is not available.", null, null, null);
+                    }
+                    teacherId = exam.CreatedByUserId;
                 }
 
-                var teacher = await _userManager.FindByIdAsync(exam.CreatedByUserId);
+                var teacher = await _userManager.FindByIdAsync(teacherId);
                 if (teacher == null)
                 {
                     return new ExamAppAuthorizeResult(false, "Teacher account was not found.", null, null, null);
@@ -149,11 +203,13 @@ namespace PeP.Services
                 var authorization = new ExamAppAuthorization
                 {
                     StudentId = studentId,
-                    ExamCodeId = examInfo.ExamCodeId,
+                    ExamCodeId = examInfo.IsProgrammingExam ? null : examInfo.ExamCodeId,
+                    ProgrammingExamCodeId = examInfo.IsProgrammingExam ? examInfo.ExamCodeId : null,
                     TokenHash = authorizationTokenHash,
                     CreatedAt = DateTime.UtcNow,
                     ExpiresAt = expiresAt,
-                    AuthorizedByTeacherId = teacher.Id
+                    AuthorizedByTeacherId = teacher.Id,
+                    IsProgrammingExam = examInfo.IsProgrammingExam
                 };
 
                 context.ExamAppAuthorizations.Add(authorization);
@@ -187,8 +243,6 @@ namespace PeP.Services
                 await using var context = await _contextFactory.CreateDbContextAsync();
 
                 var authorization = await context.ExamAppAuthorizations
-                    .Include(a => a.ExamCode)
-                        .ThenInclude(ec => ec.Exam)
                     .FirstOrDefaultAsync(a =>
                         a.StudentId == studentId &&
                         a.TokenHash == tokenHash &&
@@ -203,14 +257,62 @@ namespace PeP.Services
                 authorization.UsedAt = DateTime.UtcNow;
                 await context.SaveChangesAsync();
 
-                var examCode = authorization.ExamCode;
-                var attempt = await _examService.StartExamAsync(studentId, examCode.ExamId, examCode.Code);
+                var now = DateTime.UtcNow;
+                int attemptId;
+                DateTime attemptExpiresAt;
+
+                if (authorization.IsProgrammingExam)
+                {
+                    // Handle programming exam start
+                    var programmingExamCode = await context.ProgrammingExamCodes
+                        .Include(ec => ec.ProgrammingExam)
+                        .FirstOrDefaultAsync(ec => ec.Id == authorization.ProgrammingExamCodeId);
+
+                    if (programmingExamCode == null)
+                    {
+                        return new ExamAppStartResult(false, "Programming exam code not found.", null, null, null);
+                    }
+
+                    var programmingAttempt = await _programmingExamService.StartProgrammingExamAsync(
+                        studentId, 
+                        programmingExamCode.ProgrammingExamId, 
+                        programmingExamCode.Code);
+
+                    attemptId = programmingAttempt.Id;
+                    attemptExpiresAt = programmingAttempt.StartedAt
+                        .AddMinutes(programmingExamCode.ProgrammingExam.DurationMinutes)
+                        .AddMinutes(10);
+                }
+                else
+                {
+                    // Handle regular exam start
+                    var examCode = await context.ExamCodes
+                        .Include(ec => ec.Exam)
+                        .FirstOrDefaultAsync(ec => ec.Id == authorization.ExamCodeId);
+
+                    if (examCode == null)
+                    {
+                        return new ExamAppStartResult(false, "Exam code not found.", null, null, null);
+                    }
+
+                    var attempt = await _examService.StartExamAsync(studentId, examCode.ExamId, examCode.Code);
+                    attemptId = attempt.Id;
+                    attemptExpiresAt = attempt.StartedAt.AddMinutes(attempt.Exam.DurationMinutes).AddMinutes(10);
+                }
+
+                if (attemptExpiresAt < now.AddMinutes(5))
+                {
+                    attemptExpiresAt = now.AddMinutes(5);
+                }
 
                 // Revoke any existing active sessions for this attempt
-                var now = DateTime.UtcNow;
-                var existingSessions = await context.ExamAppLaunchSessions
-                    .Where(s => s.ExamAttemptId == attempt.Id && s.StudentId == studentId && s.RevokedAt == null && s.ExpiresAt > now)
-                    .ToListAsync();
+                var existingSessions = authorization.IsProgrammingExam
+                    ? await context.ExamAppLaunchSessions
+                        .Where(s => s.ProgrammingExamAttemptId == attemptId && s.StudentId == studentId && s.RevokedAt == null && s.ExpiresAt > now)
+                        .ToListAsync()
+                    : await context.ExamAppLaunchSessions
+                        .Where(s => s.ExamAttemptId == attemptId && s.StudentId == studentId && s.RevokedAt == null && s.ExpiresAt > now)
+                        .ToListAsync();
 
                 foreach (var session in existingSessions)
                 {
@@ -220,26 +322,22 @@ namespace PeP.Services
                 var launchToken = GenerateToken();
                 var launchTokenHash = HashToken(launchToken);
 
-                var attemptExpiresAt = attempt.StartedAt.AddMinutes(attempt.Exam.DurationMinutes).AddMinutes(10);
-                if (attemptExpiresAt < now.AddMinutes(5))
-                {
-                    attemptExpiresAt = now.AddMinutes(5);
-                }
-
                 var launchSession = new ExamAppLaunchSession
                 {
-                    ExamAttemptId = attempt.Id,
+                    ExamAttemptId = authorization.IsProgrammingExam ? null : attemptId,
+                    ProgrammingExamAttemptId = authorization.IsProgrammingExam ? attemptId : null,
                     StudentId = studentId,
                     TokenHash = launchTokenHash,
                     CreatedAt = now,
                     ExpiresAt = attemptExpiresAt,
-                    RevokedAt = null
+                    RevokedAt = null,
+                    IsProgrammingExam = authorization.IsProgrammingExam
                 };
 
                 context.ExamAppLaunchSessions.Add(launchSession);
                 await context.SaveChangesAsync();
 
-                return new ExamAppStartResult(true, null, attempt.Id, launchToken, attemptExpiresAt);
+                return new ExamAppStartResult(true, null, attemptId, launchToken, attemptExpiresAt, authorization.IsProgrammingExam);
             }
             catch (Exception ex)
             {
@@ -248,7 +346,7 @@ namespace PeP.Services
             }
         }
 
-        public async Task<bool> ValidateLaunchTokenAsync(int attemptId, string studentId, string launchToken)
+        public async Task<bool> ValidateLaunchTokenAsync(int attemptId, string studentId, string launchToken, bool isProgrammingExam = false)
         {
             if (attemptId <= 0) return false;
             if (string.IsNullOrWhiteSpace(studentId)) return false;
@@ -259,24 +357,50 @@ namespace PeP.Services
             await using var context = await _contextFactory.CreateDbContextAsync();
 
             var now = DateTime.UtcNow;
-            var session = await context.ExamAppLaunchSessions
-                .AsNoTracking()
-                .FirstOrDefaultAsync(s =>
-                    s.ExamAttemptId == attemptId &&
-                    s.StudentId == studentId &&
-                    s.TokenHash == tokenHash &&
-                    s.RevokedAt == null &&
-                    s.ExpiresAt > now);
+            
+            ExamAppLaunchSession? session;
+            if (isProgrammingExam)
+            {
+                session = await context.ExamAppLaunchSessions
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(s =>
+                        s.ProgrammingExamAttemptId == attemptId &&
+                        s.StudentId == studentId &&
+                        s.TokenHash == tokenHash &&
+                        s.RevokedAt == null &&
+                        s.ExpiresAt > now);
 
-            if (session == null) return false;
+                if (session == null) return false;
 
-            var attemptStatus = await context.ExamAttempts
-                .AsNoTracking()
-                .Where(a => a.Id == attemptId && a.StudentId == studentId)
-                .Select(a => a.Status)
-                .FirstOrDefaultAsync();
+                var attemptStatus = await context.ProgrammingExamAttempts
+                    .AsNoTracking()
+                    .Where(a => a.Id == attemptId && a.StudentId == studentId)
+                    .Select(a => a.Status)
+                    .FirstOrDefaultAsync();
 
-            return attemptStatus == ExamAttemptStatus.InProgress;
+                return attemptStatus == ProgrammingExamStatus.InProgress;
+            }
+            else
+            {
+                session = await context.ExamAppLaunchSessions
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(s =>
+                        s.ExamAttemptId == attemptId &&
+                        s.StudentId == studentId &&
+                        s.TokenHash == tokenHash &&
+                        s.RevokedAt == null &&
+                        s.ExpiresAt > now);
+
+                if (session == null) return false;
+
+                var attemptStatus = await context.ExamAttempts
+                    .AsNoTracking()
+                    .Where(a => a.Id == attemptId && a.StudentId == studentId)
+                    .Select(a => a.Status)
+                    .FirstOrDefaultAsync();
+
+                return attemptStatus == ExamAttemptStatus.InProgress;
+            }
         }
 
         private static string GenerateToken(int numBytes = 32)

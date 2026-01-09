@@ -5,11 +5,12 @@
 <h1 align="center">PeP - Programming Examination Platform</h1>
 
 <p align="center">
-  <strong>A comprehensive, secure online examination system with SafeExamBrowser-like protection</strong>
+  <strong>A comprehensive, secure online examination system with SafeExamBrowser-like protection and AI-powered code evaluation</strong>
 </p>
 
 <p align="center">
   <a href="#features">Features</a> •
+  <a href="#programming-exam-features-new">Programming Exams</a> •
   <a href="#live-demo">Live Demo</a> •
   <a href="#download">Download</a> •
   <a href="#installation">Installation</a> •
@@ -18,12 +19,27 @@
 </p>
 
 <p align="center">
+  <img src="https://img.shields.io/badge/Version-5.0-brightgreen?style=for-the-badge" alt="Version 5.0">
   <img src="https://img.shields.io/badge/.NET-6.0-512BD4?style=for-the-badge&logo=dotnet" alt=".NET 6.0">
   <img src="https://img.shields.io/badge/Blazor-Server-512BD4?style=for-the-badge&logo=blazor" alt="Blazor Server">
   <img src="https://img.shields.io/badge/WPF-.NET%208-512BD4?style=for-the-badge&logo=windows" alt="WPF .NET 8">
+  <img src="https://img.shields.io/badge/OpenAI-GPT--4o-412991?style=for-the-badge&logo=openai" alt="OpenAI GPT-4o">
   <img src="https://img.shields.io/badge/SQL%20Server-Database-CC2927?style=for-the-badge&logo=microsoftsqlserver" alt="SQL Server">
   <img src="https://img.shields.io/badge/Google%20Cloud-Deployed-4285F4?style=for-the-badge&logo=googlecloud" alt="Google Cloud">
 </p>
+
+---
+
+## 🆕 What's New in v5.0
+
+- 💻 **Programming Exams** - Full IDE environment with Monaco editor for coding exams
+- 🤖 **AI Code Evaluation** - Automatic grading with detailed feedback using GPT-4o
+- 📊 **Multi-Metric Scoring** - Code Quality, Correctness, and Efficiency metrics
+- 🎯 **Task Navigator** - Side panel with task instructions and progress tracking
+- 📁 **Solution Explorer** - File tree navigation with starter files and student code
+- 📄 **CSV Data Viewer** - Tab-based viewer for data files
+- 🔄 **Resizable Splitter** - Adjustable split between code editor and task panel
+- 🧠 **AI Exam Generation** - Generate complete programming projects with AI
 
 ---
 
@@ -109,18 +125,22 @@ Download the secure exam browser for Windows:
 |---------|-------------|
 | 📚 **Course Management** | Create and organize courses |
 | 📝 **Exam Builder** | Intuitive drag-and-drop exam creation |
+| 💻 **Programming Exam Builder** | Create coding exams with AI-powered task generation |
 | ❓ **Question Bank** | Reusable question library with multiple types |
 | 🔢 **Exam Codes** | Generate secure access codes with expiration |
 | 👨‍🎓 **Student Management** | Add students individually or bulk import via CSV |
 | 📊 **Results & Analytics** | Detailed exam results and performance analytics |
 | 🤖 **AI Question Generation** | Generate questions using OpenAI integration |
+| 🧠 **AI Code Evaluation** | Automatic code grading with detailed feedback |
 
 #### For Students
 | Feature | Description |
 |---------|-------------|
 | 🎯 **Take Exams** | Clean, distraction-free exam interface |
+| � **Programming Exams** | Full-featured IDE with Monaco editor, file explorer, and console |
 | 📱 **Responsive Design** | Works on desktop, tablet, and mobile |
 | 📊 **View Results** | Detailed breakdown of exam performance |
+| 🧠 **AI Evaluation Report** | Comprehensive code feedback with quality metrics |
 | 📜 **Exam History** | Access all past exam attempts |
 
 ### 🖥️ ExamApp (Secure Desktop Client)
@@ -164,6 +184,48 @@ Download the secure exam browser for Windows:
 | ⚡ **Current Connection** | Shows connected network name and status |
 | 🔌 **Disconnect** | Disconnect from current WiFi network |
 | 🔌 **Ethernet Status** | Shows real Ethernet connection (excludes virtual adapters) |
+
+### 💻 Programming Exam Features (NEW)
+
+#### IDE Environment
+| Feature | Description |
+|---------|-------------|
+| 📝 **Monaco Code Editor** | VS Code-style editor with syntax highlighting, IntelliSense, and auto-completion |
+| 📁 **Solution Explorer** | File tree navigation with starter files and student-created files |
+| 🎯 **Task Navigator** | Side panel showing task instructions, hints, and progress tracking |
+| 📊 **Resizable Splitter** | Adjustable split between code editor and task panel |
+| ⏱️ **Live Timer** | Countdown timer with color-coded urgency indicators |
+| 🔄 **Auto-save** | Automatic progress saving during exam |
+| 🖥️ **Console Output** | Integrated console for program output and errors |
+| 📄 **CSV Data Viewer** | Tab-based viewer for CSV data files |
+
+#### AI-Powered Code Evaluation
+| Feature | Description |
+|---------|-------------|
+| 🧠 **Automatic Grading** | AI evaluates code correctness, quality, and efficiency |
+| 📊 **Multi-Metric Scoring** | Code Quality (25%), Correctness (40%), Completion (20%), Efficiency (15%) |
+| 🎯 **Arc Gauge Visualization** | Visual representation of scores with color-coded indicators |
+| 💬 **Detailed Feedback** | Strengths, areas for improvement, and solution suggestions |
+| 📝 **Code Snippets** | Specific code excerpts with inline comments and suggestions |
+| ⚖️ **Balanced Evaluation** | Fair but thorough - strict on empty code, partial credit for genuine attempts |
+| 🔄 **Re-evaluation** | Teachers can trigger AI re-evaluation for any submission |
+
+#### Programming Languages Supported
+| Language | Features |
+|----------|----------|
+| 🐍 **Python** | Full syntax support, CSV parsing, pandas integration |
+| ☕ **Java** | Class-based projects, main method detection |
+| 🌐 **JavaScript** | ES6+ syntax, Node.js-style console output |
+| 💜 **C#** | .NET-style projects with proper class structure |
+
+#### Teacher Tools
+| Feature | Description |
+|---------|-------------|
+| 🤖 **AI Exam Generator** | Generate complete programming exams with AI |
+| 📋 **Task Builder** | Manual task creation with hints, target files, and test cases |
+| 📁 **Starter Files** | Upload CSV data files and initial code templates |
+| 📊 **Grading Dashboard** | View all submissions with AI scores and manual override |
+| 📥 **Code Download** | Download student code as ZIP archive |
 
 ---
 
@@ -211,19 +273,28 @@ PeP/
 ├── 📁 Models/                # Domain Models
 │   ├── ApplicationUser.cs
 │   ├── ExamModels.cs
+│   ├── ProgrammingExamModels.cs  # NEW: Programming exam entities
 │   └── ExamAppModels.cs
 ├── 📁 Services/              # Business Logic
 │   ├── ExamService.cs
+│   ├── ProgrammingExamService.cs # NEW: Programming exam logic
+│   ├── CodeExecutionService.cs   # NEW: Code execution & testing
 │   ├── UserService.cs
-│   └── OpenAIService.cs
+│   └── OpenAIService.cs          # AI evaluation & generation
 ├── 📁 Pages/                 # Blazor Pages
 │   ├── 📁 Admin/            # Admin pages
 │   ├── 📁 Teacher/          # Teacher pages
+│   │   ├── CreateProgrammingExam.razor  # NEW: Programming exam builder
+│   │   └── GradeProgrammingExam.razor   # NEW: AI grading dashboard
 │   ├── 📁 Student/          # Student pages
+│   │   ├── TakeProgrammingExam.razor    # NEW: Programming exam IDE
+│   │   └── ExamEvaluation.razor         # NEW: AI evaluation results
 │   └── 📁 Account/          # Authentication pages
 ├── 📁 Shared/                # Shared Components
 │   ├── MainLayout.razor
 │   ├── NavMenu.razor
+│   ├── 📁 Components/       # NEW: Reusable components
+│   │   └── TaskNavigator.razor          # NEW: Task navigation panel
 │   └── 📁 Dialogs/
 ├── 📁 ViewModels/            # View Models
 ├── 📁 wwwroot/               # Static Files
@@ -267,6 +338,7 @@ PeP.ExamApp/
 | **ASP.NET Core Identity** | Authentication & authorization |
 | **SQL Server** | Database |
 | **Radzen Blazor** | UI component library |
+| **Monaco Editor** | VS Code-style code editor for programming exams |
 
 ### Desktop Application
 | Technology | Purpose |
@@ -279,8 +351,16 @@ PeP.ExamApp/
 ### External Integrations
 | Service | Purpose |
 |---------|---------|
-| **OpenAI API** | AI question generation (optional) |
+| **OpenAI API (GPT-4o-mini)** | AI question generation & code evaluation |
 | **SMTP** | Email notifications (optional) |
+
+### AI Features (OpenAI Integration)
+| Feature | Description |
+|---------|-------------|
+| **Question Generation** | Generate multiple-choice questions from topic prompts |
+| **Programming Exam Generation** | Generate complete coding projects with tasks and starter files |
+| **Code Evaluation** | Automatic grading with detailed feedback on code quality, correctness, and efficiency |
+| **Configurable Model** | Support for GPT-4o, GPT-4o-mini, and other OpenAI models |
 
 ---
 
@@ -536,6 +616,39 @@ cd PeP.ExamApp\Installer
    - Set point value
 4. Click **Save Exam**
 
+#### Creating a Programming Exam (NEW)
+
+1. Navigate to **Exams** → **Create Programming Exam**
+2. Fill in exam details:
+   - Title, description, and project name
+   - Select course and programming language (Python, Java, JavaScript, C#)
+   - Set duration (10-300 minutes)
+   - Total points allocation
+3. **Option A - Generate with AI:**
+   - Click **Generate with AI**
+   - Enter a topic description (e.g., "Data analysis with CSV files and pandas")
+   - Select difficulty level
+   - AI generates complete project with tasks and starter files
+4. **Option B - Create Manually:**
+   - Add starter files (CSV data, initial code templates)
+   - Create tasks with:
+     - Task title and instructions (Markdown supported)
+     - Point value
+     - Optional hints
+     - Target files (which files students should edit)
+5. Review and click **Save Exam**
+
+#### Grading Programming Exams
+
+1. Navigate to **Exams** → select a Programming Exam
+2. Click **View Submissions** to see all attempts
+3. For each submission:
+   - View AI-generated scores (Quality, Correctness, Efficiency)
+   - Read detailed feedback and code snippets
+   - Override scores manually if needed
+   - Click **Re-evaluate with AI** to regenerate feedback
+4. Click **Save Grades** to finalize
+
 #### Generating Exam Codes
 
 1. Navigate to **Exams** → **Exam Codes**
@@ -607,6 +720,46 @@ jane@example.com,Jane,Smith,SecurePass456!
 - Enter the teacher password
 - The exam will be submitted automatically
 - Results will open in your default browser
+
+#### Taking a Programming Exam (NEW)
+
+1. **Launch via PeP ExamApp** (required for secure mode)
+2. Enter exam code and teacher password
+3. **Using the IDE:**
+   - **Solution Explorer** (left): Navigate between files
+     - 📁 **Starter Files**: Read-only data files (CSV, etc.)
+     - 📄 **Your Files**: Editable code files
+   - **Code Editor** (center): Write your code with:
+     - Syntax highlighting
+     - Auto-completion
+     - Error indicators
+   - **Task Panel** (right): View current task instructions
+     - Use the **splitter bar** to resize panels
+     - Navigate between tasks using task buttons
+     - View hints if available
+   - **Console** (bottom): View program output
+4. **Complete each task:**
+   - Read instructions in the Task Navigator
+   - Edit the target files as specified
+   - Use hints if you're stuck
+   - Progress is auto-saved periodically
+5. **Submit exam:**
+   - Click **Submit Exam** when finished
+   - Confirm submission in the dialog
+   - Wait for AI evaluation
+
+#### Viewing Programming Exam Results (NEW)
+
+1. After submission, you'll see the **AI Evaluation Report**:
+   - **Final Grade**: Overall percentage with points earned
+   - **Score Gauges**: Visual indicators for Code Quality, Correctness, and Efficiency
+2. **Task-by-Task Feedback**:
+   - Completion percentage and points for each task
+   - Progress bars for Quality, Correctness, Efficiency
+   - **Strengths**: What you did well
+   - **Areas for Improvement**: Suggestions for better code
+   - **Code Snippets**: Specific excerpts with inline feedback
+3. Click **Download Code** to get a ZIP of your submission
 
 #### Viewing Results
 
@@ -833,6 +986,43 @@ Content-Type: application/json
 └─────────────────┘                             └─────────────────┘
 ```
 
+### Programming Exam Entities (NEW)
+
+```
+┌─────────────────────┐     ┌─────────────────────┐     ┌─────────────────────┐
+│  ProgrammingExam    │     │  ProgrammingTask    │     │  TaskTestCase       │
+├─────────────────────┤     ├─────────────────────┤     ├─────────────────────┤
+│ Id                  │     │ Id                  │     │ Id                  │
+│ Title               │────►│ Title               │────►│ Name                │
+│ Description         │     │ Instructions        │     │ Input               │
+│ ProjectName         │     │ Order               │     │ ExpectedOutput      │
+│ Language (Python,   │     │ Points              │     │ IsHidden            │
+│  Java, JS, C#)      │     │ Hint                │     │ TaskId              │
+│ DurationMinutes     │     │ TargetFiles         │     └─────────────────────┘
+│ TotalPoints         │     │ ProgrammingExamId   │
+│ CourseId            │     └─────────────────────┘
+│ StarterFilesJson    │
+└─────────────────────┘
+
+┌─────────────────────┐     ┌─────────────────────┐
+│ProgrammingExamAttempt     │  TaskProgress       │
+├─────────────────────┤     ├─────────────────────┤
+│ Id                  │     │ Id                  │
+│ StudentId           │────►│ AttemptId           │
+│ ProgrammingExamId   │     │ TaskId              │
+│ Status (InProgress, │     │ StudentCode (JSON)  │
+│  Completed, etc.)   │     │ CompletionPercentage│
+│ StartedAt           │     │ AIScore             │
+│ SubmittedAt         │     │ CodeQualityScore    │
+│ TotalScore          │     │ CorrectnessScore    │
+│ AIEvaluationCompleted     │ EfficiencyScore     │
+│ StudentFilesJson    │     │ AIFeedback          │
+└─────────────────────┘     │ AIStrengths         │
+                            │ AIImprovements      │
+                            │ AICodeSnippets (JSON)│
+                            └─────────────────────┘
+```
+
 ---
 
 ## 🔧 Troubleshooting
@@ -866,6 +1056,42 @@ Content-Type: application/json
 1. Ensure `_Imports.razor` includes `@using Radzen` and `@using Radzen.Blazor`
 2. Verify `RadzenComponents` is added in `_Layout.cshtml`
 3. Clear browser cache and restart
+</details>
+
+#### Programming Exams (NEW)
+
+<details>
+<summary><strong>AI evaluation not completing</strong></summary>
+
+1. Verify OpenAI API key is configured in **Admin** → **Settings**
+2. Check that the API key has sufficient credits
+3. Ensure the model (e.g., `gpt-4o-mini`) is available in your OpenAI account
+4. Check server logs for API errors
+</details>
+
+<details>
+<summary><strong>Monaco editor not loading</strong></summary>
+
+1. Clear browser cache and hard refresh (Ctrl+Shift+R)
+2. Ensure JavaScript is enabled
+3. Check browser console for errors
+4. Verify `_framework/blazor.server.js` is loading
+</details>
+
+<details>
+<summary><strong>CSV files not displaying in tabs</strong></summary>
+
+1. Ensure CSV files are added as starter files (read-only)
+2. Click on the file in Solution Explorer to view content
+3. Tab switching should update content automatically
+</details>
+
+<details>
+<summary><strong>Exam evaluation shows blank page</strong></summary>
+
+1. Ensure the exam was submitted successfully
+2. Wait for AI evaluation to complete (may take 15-30 seconds)
+3. If stuck on loading, refresh the page - cached results will display
 </details>
 
 #### ExamApp

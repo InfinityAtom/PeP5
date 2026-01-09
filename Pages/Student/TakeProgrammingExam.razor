@@ -1,0 +1,1307 @@
+@page "/student/take-programming-exam"
+@page "/student/take-programming-exam/{AttemptId:int}"
+@layout ExamLayout
+@using Microsoft.AspNetCore.Components.Authorization
+@using PeP.Shared.Components
+@attribute [Authorize(Roles = UserRoles.Student)]
+@inject IProgrammingExamService ProgrammingExamService
+@inject ICodeExecutionService CodeExecutionService
+@inject IExamAppService ExamAppService
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject UserManager<ApplicationUser> UserManager
+@inject NavigationManager Navigation
+@inject NotificationService NotificationService
+@inject DialogService DialogService
+@inject IJSRuntime JSRuntime
+@implements IDisposable
+
+<PageTitle>@(programmingExam?.Title ?? "Programming Exam") - PeP v5.0</PageTitle>
+
+@if (isLoading)
+{
+    <RadzenRow JustifyContent="JustifyContent.Center" AlignItems="AlignItems.Center" Style="height: 100vh;">
+        <RadzenColumn Size="12" SizeMD="6" SizeLG="4">
+            <RadzenCard>
+                <RadzenStack Gap="1rem" AlignItems="AlignItems.Center">
+                    <RadzenProgressBarCircular ShowValue="false" Size="ProgressBarCircularSize.Large" />
+                    <RadzenText TextStyle="TextStyle.H5">Loading your programming exam...</RadzenText>
+                </RadzenStack>
+            </RadzenCard>
+        </RadzenColumn>
+    </RadzenRow>
+}
+else if (!examStarted)
+{
+    <!-- Exam App Required or Error -->
+    <RadzenRow JustifyContent="JustifyContent.Center" AlignItems="AlignItems.Center" Style="height: 100vh;">
+        <RadzenColumn Size="12" SizeMD="7" SizeLG="5">
+            <RadzenCard>
+                <RadzenStack Gap="1rem" AlignItems="AlignItems.Center">
+                    @if (!string.IsNullOrEmpty(examAppError))
+                    {
+                        <RadzenIcon Icon="error" IconColor="@Colors.Danger" Style="font-size: 3rem;" />
+                        <RadzenText TextStyle="TextStyle.H4" TextAlign="TextAlign.Center" TagName="TagName.H1">
+                            Session Error
+                        </RadzenText>
+                        <RadzenAlert AlertStyle="AlertStyle.Danger" Shade="Shade.Lighter" AllowClose="false">
+                            @examAppError
+                        </RadzenAlert>
+                    }
+                    else
+                    {
+                        <RadzenIcon Icon="code" IconColor="@Colors.Primary" Style="font-size: 3rem;" />
+                        <RadzenText TextStyle="TextStyle.H4" TextAlign="TextAlign.Center" TagName="TagName.H1">
+                            Programming Exam
+                        </RadzenText>
+                        <RadzenText TextStyle="TextStyle.Body1" TextAlign="TextAlign.Center">
+                            Please use the PeP Exam App to start your programming exam.
+                        </RadzenText>
+                    }
+                    <RadzenButton Text="Back to Dashboard" Icon="dashboard" ButtonStyle="ButtonStyle.Primary"
+                                  Click="@(() => Navigation.NavigateTo("/student"))" />
+                </RadzenStack>
+            </RadzenCard>
+        </RadzenColumn>
+    </RadzenRow>
+}
+else if (currentAttempt != null && programmingExam != null)
+{
+    <!-- Main IDE Layout -->
+    <div class="programming-exam-container" style="height: 100vh; display: flex; flex-direction: column; overflow: hidden;">
+        
+        <!-- Header Bar -->
+        <div class="exam-header" style="background: var(--rz-base-200); border-bottom: 1px solid var(--rz-base-400); padding: 0.5rem 1rem;">
+            <RadzenRow AlignItems="AlignItems.Center" JustifyContent="JustifyContent.SpaceBetween">
+                <RadzenColumn SizeXS="12" SizeMD="4">
+                    <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="1rem">
+                        <!-- Timer -->
+                        <RadzenBadge BadgeStyle="@GetTimerBadgeStyle()" IsPill="true" Style="font-size: 1.1rem; padding: 0.5rem 1rem;">
+                            <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
+                                <RadzenIcon Icon="timer" />
+                                <span>@timeRemaining.ToString(@"hh\:mm\:ss")</span>
+                            </RadzenStack>
+                        </RadzenBadge>
+                    </RadzenStack>
+                </RadzenColumn>
+                
+                <RadzenColumn SizeXS="12" SizeMD="4">
+                    <RadzenStack AlignItems="AlignItems.Center" Gap="0.25rem">
+                        <RadzenText TextStyle="TextStyle.Subtitle1" Style="margin: 0; font-weight: 600;">
+                            @programmingExam.Title
+                        </RadzenText>
+                        <RadzenText TextStyle="TextStyle.Caption" class="text-muted" Style="margin: 0;">
+                            Project: @programmingExam.ProjectName
+                        </RadzenText>
+                    </RadzenStack>
+                </RadzenColumn>
+                
+                <RadzenColumn SizeXS="12" SizeMD="4">
+                    <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.End" Gap="0.5rem">
+                        <RadzenButton Text="Restart Project" Icon="refresh" ButtonStyle="ButtonStyle.Warning" 
+                                     Size="ButtonSize.Small" Click="@RestartProject" />
+                        <RadzenButton Text="Submit Project" Icon="check_circle" ButtonStyle="ButtonStyle.Success" 
+                                     Size="ButtonSize.Small" Click="@SubmitProject" />
+                    </RadzenStack>
+                </RadzenColumn>
+            </RadzenRow>
+        </div>
+
+        <!-- Main IDE Area with Task Panel -->
+        <RadzenSplitter Orientation="Orientation.Vertical" Style="flex: 1; overflow: hidden;">
+            <RadzenSplitterPane Size="70%" Min="300px">
+                <!-- IDE Area -->
+                <div class="ide-area" style="height: 100%; display: flex; overflow: hidden;">
+            
+                    <!-- Solution Explorer Panel -->
+                    @if (programmingExam.ShowSolutionExplorer)
+                    {
+                        <div class="solution-explorer-panel" style="width: 250px; border-right: 1px solid var(--rz-base-400); overflow: hidden;">
+                            <SolutionExplorer ProjectName="@programmingExam.ProjectName"
+                                             Files="@studentFiles"
+                                             StarterFiles="@starterFiles"
+                                             @bind-SelectedFile="selectedFile"
+                                             OnFileSelected="@OnFileSelected"
+                                             OnNewFile="@CreateNewFile"
+                                             OnNewFolder="@CreateNewFolder"
+                                             OnDeleteFile="@DeleteFile"
+                                             OnRenameFile="@RenameFile" />
+                        </div>
+                    }
+
+                    <!-- Editor and Console Area -->
+                    <div class="editor-console-area" style="flex: 1; display: flex; flex-direction: column; overflow: hidden;">
+                
+                        <!-- File Tabs -->
+                        @if (openTabs.Any())
+                        {
+                            <div class="file-tabs" style="display: flex; background: var(--rz-base-200); border-bottom: 1px solid var(--rz-base-400); overflow-x: auto; min-height: 36px;">
+                                @foreach (var tab in openTabs)
+                                {
+                                    var isActive = selectedFile?.FilePath == tab.FilePath;
+                                    var isModified = IsFileModified(tab.FilePath);
+                                    var tabStyle = isActive 
+                                        ? "background: var(--rz-base-100); border-bottom: 2px solid var(--rz-primary);" 
+                                        : "background: var(--rz-base-200);";
+                                    var iconColor = GetTabIconColor(tab.FileName);
+                                    <div class="file-tab @(isActive ? "active" : "")" 
+                                         style="@($"display: flex; align-items: center; gap: 4px; padding: 6px 12px; cursor: pointer; border-right: 1px solid var(--rz-base-400); white-space: nowrap; {tabStyle}")"
+                                         @onclick="@(() => SwitchToTab(tab))">
+                                        <RadzenIcon Icon="@GetTabIcon(tab.FileName)" Style="@($"font-size: 0.875rem; color: {iconColor};")" />
+                                        <span style="font-size: 0.8rem; max-width: 120px; overflow: hidden; text-overflow: ellipsis;">@tab.FileName</span>
+                                        @if (isModified)
+                                        {
+                                            <span style="color: var(--rz-warning); font-weight: bold;">●</span>
+                                        }
+                                        <button class="tab-close" 
+                                                style="background: none; border: none; cursor: pointer; padding: 2px; margin-left: 4px; border-radius: 3px; display: flex; align-items: center; justify-content: center;"
+                                                @onclick:stopPropagation="true"
+                                                @onclick="@(() => CloseTab(tab))">
+                                            <RadzenIcon Icon="close" Style="font-size: 0.75rem; color: var(--rz-text-tertiary-color);" />
+                                        </button>
+                                    </div>
+                                }
+                            </div>
+                        }
+
+                        <!-- Code Editor -->
+                        <div class="editor-panel" style="flex: 1; min-height: 300px; overflow: hidden;">
+                            @if (selectedFile != null)
+                            {
+                                <CodeEditor @ref="codeEditor"
+                                           @key="selectedFile.FilePath"
+                                           EditorId="@($"editor-{selectedFile.FilePath.Replace("/", "-").Replace("\\", "-")}")"
+                                           Content="@GetFileContent(selectedFile.FilePath)"
+                                           FileName="@selectedFile.FileName"
+                                           Language="@programmingExam.Language"
+                                           IsReadOnly="@IsFileReadOnly(selectedFile.FilePath)"
+                                           IsModified="@IsFileModified(selectedFile.FilePath)"
+                                           ContentChanged="@OnContentChanged"
+                                           OnSave="@SaveCurrentFile" />
+                            }
+                            else
+                            {
+                                <div style="height: 100%; display: flex; align-items: center; justify-content: center; background: #1e1e1e; color: #808080;">
+                                    <RadzenStack AlignItems="AlignItems.Center" Gap="1rem">
+                                        <RadzenIcon Icon="code" Style="font-size: 4rem;" />
+                                        <RadzenText TextStyle="TextStyle.H6" Style="color: inherit;">Select a file to edit</RadzenText>
+                                    </RadzenStack>
+                                </div>
+                            }
+                        </div>
+
+                        <!-- Console Panel -->
+                        <div class="console-panel-container" style="height: 200px; border-top: 1px solid var(--rz-base-400);">
+                            <ConsolePanel @ref="consolePanel"
+                                         ConsoleEntries="@consoleEntries"
+                                         IsRunning="@isRunningCode"
+                                         AllowInput="@programmingExam.AllowConsoleInput"
+                                         OnRun="@RunCode"
+                                         OnRunWithInput="@RunCodeWithInput"
+                                         OnStop="@StopExecution"
+                                         OnClear="@ClearConsole"
+                                         OnInputSubmitted="@OnConsoleInput" />
+                        </div>
+                    </div>
+                </div>
+            </RadzenSplitterPane>
+            
+            <RadzenSplitterPane Size="30%" Min="150px" Max="50%">
+                <!-- Task Navigator Panel -->
+                <div class="task-section" style="height: 100%; padding: 1rem; background: var(--rz-base-100); overflow: auto;">
+                    <TaskNavigator Tasks="@tasks" 
+                                  TaskProgressList="@taskProgressList"
+                                  @bind-SelectedTask="selectedTask"
+                                  OnTaskSelected="@OnTaskSelected"
+                                  OnOverview="@ShowOverview"
+                                  OnViewData="@ViewDataFile"
+                                  OnMarkStatus="@MarkTaskStatus"
+                                  HasDataFile="@HasDataFile()" />
+                </div>
+            </RadzenSplitterPane>
+        </RadzenSplitter>
+    </div>
+}
+
+@code {
+    [Parameter] public int? AttemptId { get; set; }
+    
+    [Parameter]
+    [SupplyParameterFromQuery(Name = "attemptId")]
+    public int? QueryAttemptId { get; set; }
+    
+    [Parameter]
+    [SupplyParameterFromQuery(Name = "launchToken")]
+    public string? LaunchToken { get; set; }
+
+    private bool isLoading = true;
+    private bool examStarted = false;
+    private string? currentUserId;
+    private string? examAppError;
+    private string? activeLaunchToken;
+    
+    private ProgrammingExam? programmingExam;
+    private ProgrammingExamAttempt? currentAttempt;
+    private List<ProgrammingTask> tasks = new();
+    private List<TaskProgress> taskProgressList = new();
+    private List<StudentProjectFile> studentFiles = new();
+    private List<ProjectFile> starterFiles = new();
+
+    private ProgrammingTask? selectedTask;
+    private StudentProjectFile? selectedFile;
+    
+    private CodeEditor? codeEditor;
+    private ConsolePanel? consolePanel;
+    private List<ConsolePanel.ConsoleEntry> consoleEntries = new();
+
+    private TimeSpan timeRemaining;
+    private Timer? examTimer;
+    private Timer? autoSaveTimer;
+
+    private bool isRunningCode = false;
+    private Dictionary<string, string> modifiedFiles = new();
+    private Dictionary<string, string> fileContents = new(); // Track content for all files
+    private CancellationTokenSource? executionCts;
+    private List<StudentProjectFile> openTabs = new();
+
+    private string GetFileContent(string filePath)
+    {
+        // Return modified content if exists, otherwise get from file
+        if (modifiedFiles.TryGetValue(filePath, out var modified))
+            return modified;
+        
+        if (fileContents.TryGetValue(filePath, out var content))
+            return content;
+        
+        var file = studentFiles.FirstOrDefault(f => f.FilePath == filePath);
+        if (file != null)
+        {
+            fileContents[filePath] = file.Content;
+            return file.Content;
+        }
+        
+        // Check starter files
+        var starterFile = starterFiles.FirstOrDefault(f => f.FilePath == filePath);
+        if (starterFile != null)
+        {
+            fileContents[filePath] = starterFile.Content;
+            return starterFile.Content;
+        }
+        
+        return "";
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            var user = await UserManager.GetUserAsync(authState.User);
+            currentUserId = user?.Id;
+        }
+        catch (Exception ex)
+        {
+            NotificationService.Notify(NotificationSeverity.Error, "Error", ex.Message);
+            isLoading = false;
+        }
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        // Use QueryAttemptId from query string if AttemptId route parameter is not set
+        var effectiveAttemptId = AttemptId ?? QueryAttemptId;
+        
+        if (!effectiveAttemptId.HasValue)
+        {
+            examAppError = null;
+            isLoading = false;
+            return;
+        }
+
+        if (currentUserId != null && (currentAttempt == null || currentAttempt.Id != effectiveAttemptId.Value))
+        {
+            examAppError = null;
+            isLoading = true;
+
+            if (string.IsNullOrWhiteSpace(LaunchToken))
+            {
+                examAppError = "This exam can only be launched from the PeP Exam App.";
+                examStarted = false;
+                isLoading = false;
+                return;
+            }
+
+            // Validate the launch token for programming exam (isProgrammingExam = true)
+            var isValid = await ExamAppService.ValidateLaunchTokenAsync(effectiveAttemptId.Value, currentUserId, LaunchToken, isProgrammingExam: true);
+            if (!isValid)
+            {
+                examAppError = "This exam session is not authorized or has expired. Please relaunch from the PeP Exam App.";
+                examStarted = false;
+                isLoading = false;
+                return;
+            }
+
+            activeLaunchToken = LaunchToken;
+            examStarted = true;
+            await LoadExamAttempt(effectiveAttemptId.Value);
+            isLoading = false;
+        }
+    }
+
+    private async Task LoadExamAttempt(int attemptId)
+    {
+        currentAttempt = await ProgrammingExamService.GetAttemptByIdAsync(attemptId);
+        
+        if (currentAttempt == null || currentAttempt.StudentId != currentUserId)
+        {
+            NotificationService.Notify(NotificationSeverity.Error, "Error", "Exam attempt not found");
+            return;
+        }
+
+        if (currentAttempt.Status != ProgrammingExamStatus.InProgress)
+        {
+            NotificationService.Notify(NotificationSeverity.Warning, "Exam Completed", "This exam has already been submitted");
+            Navigation.NavigateTo("/student/results");
+            return;
+        }
+
+        programmingExam = currentAttempt.ProgrammingExam;
+        tasks = programmingExam.Tasks.OrderBy(t => t.Order).ToList();
+        starterFiles = programmingExam.StarterFiles.ToList();
+        studentFiles = currentAttempt.StudentFiles.ToList();
+        taskProgressList = currentAttempt.TaskProgress.ToList();
+
+        // Calculate remaining time
+        var elapsed = DateTime.UtcNow - currentAttempt.StartedAt;
+        var totalDuration = TimeSpan.FromMinutes(programmingExam.DurationMinutes);
+        timeRemaining = totalDuration - elapsed;
+
+        if (timeRemaining <= TimeSpan.Zero)
+        {
+            await AutoSubmitExam();
+            return;
+        }
+
+        // Select first task and file
+        selectedTask = tasks.FirstOrDefault();
+        selectedFile = studentFiles.FirstOrDefault();
+        
+        // Open first file in tabs
+        if (selectedFile != null)
+        {
+            openTabs.Add(selectedFile);
+        }
+
+        // Start timers
+        StartTimers();
+        examStarted = true;
+    }
+
+    private void StartTimers()
+    {
+        // Exam timer - update every second
+        examTimer = new Timer(async _ =>
+        {
+            timeRemaining = timeRemaining.Subtract(TimeSpan.FromSeconds(1));
+            
+            if (timeRemaining <= TimeSpan.Zero)
+            {
+                await InvokeAsync(async () => await AutoSubmitExam());
+            }
+            else
+            {
+                await InvokeAsync(StateHasChanged);
+            }
+        }, null, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(1));
+
+        // Auto-save timer
+        if (programmingExam != null && programmingExam.AutoSaveIntervalSeconds > 0)
+        {
+            var interval = TimeSpan.FromSeconds(programmingExam.AutoSaveIntervalSeconds);
+            autoSaveTimer = new Timer(async _ =>
+            {
+                await InvokeAsync(AutoSaveFiles);
+            }, null, interval, interval);
+        }
+    }
+
+    private async Task OnFileSelected(StudentProjectFile file)
+    {
+        // Save current editor content to tracking before switching
+        if (selectedFile != null && codeEditor != null)
+        {
+            try
+            {
+                var currentContent = await codeEditor.GetEditorContent();
+                if (!string.IsNullOrEmpty(currentContent))
+                {
+                    fileContents[selectedFile.FilePath] = currentContent;
+                    
+                    // Check if modified compared to original
+                    var originalFile = studentFiles.FirstOrDefault(f => f.FilePath == selectedFile.FilePath);
+                    var starterFile = starterFiles.FirstOrDefault(f => f.FilePath == selectedFile.FilePath);
+                    var originalContent = originalFile?.Content ?? starterFile?.Content ?? "";
+                    
+                    if (currentContent != originalContent)
+                    {
+                        modifiedFiles[selectedFile.FilePath] = currentContent;
+                    }
+                }
+            }
+            catch { /* Editor might not be ready */ }
+        }
+
+        // Find the actual file object from studentFiles or create from starter
+        var actualFile = studentFiles.FirstOrDefault(f => f.FilePath == file.FilePath);
+        if (actualFile == null)
+        {
+            // Check if it's a starter file
+            var starter = starterFiles.FirstOrDefault(f => f.FilePath == file.FilePath);
+            if (starter != null)
+            {
+                actualFile = new StudentProjectFile
+                {
+                    FilePath = starter.FilePath,
+                    FileName = starter.FileName,
+                    Content = starter.Content,
+                    ProgrammingExamAttemptId = currentAttempt!.Id
+                };
+                // Make sure content is in fileContents for tab switching
+                if (!fileContents.ContainsKey(starter.FilePath))
+                {
+                    fileContents[starter.FilePath] = starter.Content;
+                }
+            }
+            else
+            {
+                actualFile = file;
+            }
+        }
+
+        // Add to tabs if not already open
+        if (!openTabs.Any(t => t.FilePath == actualFile.FilePath))
+        {
+            openTabs.Add(actualFile);
+        }
+
+        selectedFile = actualFile;
+        StateHasChanged();
+    }
+
+    private async Task SwitchToTab(StudentProjectFile tab)
+    {
+        // Save current editor content before switching
+        if (selectedFile != null && codeEditor != null && selectedFile.FilePath != tab.FilePath)
+        {
+            try
+            {
+                var currentContent = await codeEditor.GetEditorContent();
+                if (!string.IsNullOrEmpty(currentContent))
+                {
+                    fileContents[selectedFile.FilePath] = currentContent;
+                    
+                    var originalFile = studentFiles.FirstOrDefault(f => f.FilePath == selectedFile.FilePath);
+                    var starterFile = starterFiles.FirstOrDefault(f => f.FilePath == selectedFile.FilePath);
+                    var originalContent = originalFile?.Content ?? starterFile?.Content ?? "";
+                    
+                    if (currentContent != originalContent)
+                    {
+                        modifiedFiles[selectedFile.FilePath] = currentContent;
+                    }
+                }
+            }
+            catch { /* Editor might not be ready */ }
+        }
+
+        // Find actual file from studentFiles first, then starterFiles, then fall back to tab
+        var actualFile = studentFiles.FirstOrDefault(f => f.FilePath == tab.FilePath);
+        if (actualFile == null)
+        {
+            // Check starter files (for CSV data files etc.)
+            var starter = starterFiles.FirstOrDefault(f => f.FilePath == tab.FilePath);
+            if (starter != null)
+            {
+                actualFile = new StudentProjectFile
+                {
+                    FilePath = starter.FilePath,
+                    FileName = starter.FileName,
+                    Content = starter.Content,
+                    ProgrammingExamAttemptId = currentAttempt?.Id ?? 0
+                };
+                // Make sure content is in fileContents
+                if (!fileContents.ContainsKey(starter.FilePath))
+                {
+                    fileContents[starter.FilePath] = starter.Content;
+                }
+            }
+            else
+            {
+                actualFile = tab;
+            }
+        }
+        
+        selectedFile = actualFile;
+        StateHasChanged();
+    }
+
+    private async Task CloseTab(StudentProjectFile tab)
+    {
+        // Save current content if this is the active tab
+        if (selectedFile?.FilePath == tab.FilePath && codeEditor != null)
+        {
+            try
+            {
+                var currentContent = await codeEditor.GetEditorContent();
+                if (!string.IsNullOrEmpty(currentContent))
+                {
+                    fileContents[tab.FilePath] = currentContent;
+                    
+                    var originalFile = studentFiles.FirstOrDefault(f => f.FilePath == tab.FilePath);
+                    var starterFile = starterFiles.FirstOrDefault(f => f.FilePath == tab.FilePath);
+                    var originalContent = originalFile?.Content ?? starterFile?.Content ?? "";
+                    
+                    if (currentContent != originalContent)
+                    {
+                        modifiedFiles[tab.FilePath] = currentContent;
+                    }
+                }
+            }
+            catch { }
+        }
+
+        // Check if modified and prompt to save
+        if (modifiedFiles.ContainsKey(tab.FilePath))
+        {
+            var confirm = await DialogService.Confirm(
+                $"Do you want to save changes to {tab.FileName} before closing?",
+                "Save Changes",
+                new ConfirmOptions { OkButtonText = "Save", CancelButtonText = "Don't Save" });
+
+            if (confirm == true)
+            {
+                // Save the file
+                var content = fileContents.GetValueOrDefault(tab.FilePath, tab.Content);
+                await ProgrammingExamService.SaveStudentFileAsync(
+                    currentAttempt!.Id, tab.FilePath, tab.FileName, content);
+                
+                // Update the file in studentFiles list
+                var studentFile = studentFiles.FirstOrDefault(f => f.FilePath == tab.FilePath);
+                if (studentFile != null)
+                {
+                    studentFile.Content = content;
+                }
+                
+                modifiedFiles.Remove(tab.FilePath);
+            }
+            else
+            {
+                // Discard changes - remove from modified and restore original content
+                modifiedFiles.Remove(tab.FilePath);
+                fileContents.Remove(tab.FilePath);
+            }
+        }
+
+        var tabIndex = openTabs.FindIndex(t => t.FilePath == tab.FilePath);
+        openTabs.RemoveAt(tabIndex);
+
+        // If closing the active tab, switch to another tab
+        if (selectedFile?.FilePath == tab.FilePath)
+        {
+            if (openTabs.Any())
+            {
+                var newIndex = Math.Min(tabIndex, openTabs.Count - 1);
+                selectedFile = openTabs[newIndex];
+            }
+            else
+            {
+                selectedFile = null;
+            }
+        }
+
+        StateHasChanged();
+    }
+
+    private string GetTabIcon(string fileName)
+    {
+        var extension = Path.GetExtension(fileName)?.ToLowerInvariant();
+        return extension switch
+        {
+            ".java" => "code",
+            ".py" => "code",
+            ".cs" => "code",
+            ".cpp" or ".c" or ".h" => "code",
+            ".js" => "javascript",
+            ".ts" => "code",
+            ".sql" => "storage",
+            ".csv" => "table_chart",
+            ".json" => "data_object",
+            ".txt" => "description",
+            _ => "insert_drive_file"
+        };
+    }
+
+    private string GetTabIconColor(string fileName)
+    {
+        var extension = Path.GetExtension(fileName)?.ToLowerInvariant();
+        return extension switch
+        {
+            ".java" => "#f89820",
+            ".py" => "#3776ab",
+            ".cs" => "#68217a",
+            ".cpp" or ".c" or ".h" => "#00599c",
+            ".js" => "#f7df1e",
+            ".ts" => "#3178c6",
+            ".csv" or ".json" => "#4caf50",
+            _ => "var(--rz-text-secondary-color)"
+        };
+    }
+
+    private async Task OnContentChanged(string newContent)
+    {
+        if (selectedFile != null)
+        {
+            fileContents[selectedFile.FilePath] = newContent;
+            
+            // Check if this differs from original
+            var originalFile = studentFiles.FirstOrDefault(f => f.FilePath == selectedFile.FilePath);
+            var starterFile = starterFiles.FirstOrDefault(f => f.FilePath == selectedFile.FilePath);
+            var originalContent = originalFile?.Content ?? starterFile?.Content ?? "";
+            
+            if (newContent != originalContent)
+            {
+                modifiedFiles[selectedFile.FilePath] = newContent;
+            }
+            else
+            {
+                modifiedFiles.Remove(selectedFile.FilePath);
+            }
+            
+            StateHasChanged();
+        }
+    }
+
+    private async Task SaveCurrentFile()
+    {
+        if (selectedFile == null || currentAttempt == null) return;
+
+        try
+        {
+            var content = codeEditor != null ? await codeEditor.GetEditorContent() : GetFileContent(selectedFile.FilePath);
+            
+            await ProgrammingExamService.SaveStudentFileAsync(
+                currentAttempt.Id,
+                selectedFile.FilePath,
+                selectedFile.FileName,
+                content);
+
+            // Update in-memory state
+            var studentFile = studentFiles.FirstOrDefault(f => f.FilePath == selectedFile.FilePath);
+            if (studentFile != null)
+            {
+                studentFile.Content = content;
+            }
+            else
+            {
+                // Add to studentFiles if it was a starter file
+                studentFiles.Add(new StudentProjectFile
+                {
+                    ProgrammingExamAttemptId = currentAttempt.Id,
+                    FilePath = selectedFile.FilePath,
+                    FileName = selectedFile.FileName,
+                    Content = content
+                });
+            }
+            
+            fileContents[selectedFile.FilePath] = content;
+            modifiedFiles.Remove(selectedFile.FilePath);
+
+            NotificationService.Notify(NotificationSeverity.Success, "Saved", $"{selectedFile.FileName} saved");
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            NotificationService.Notify(NotificationSeverity.Error, "Save Failed", ex.Message);
+        }
+    }
+
+    private async Task AutoSaveFiles()
+    {
+        if (currentAttempt == null) return;
+
+        foreach (var file in modifiedFiles.ToList())
+        {
+            try
+            {
+                var studentFile = studentFiles.FirstOrDefault(f => f.FilePath == file.Key);
+                if (studentFile != null)
+                {
+                    await ProgrammingExamService.SaveStudentFileAsync(
+                        currentAttempt.Id,
+                        file.Key,
+                        studentFile.FileName,
+                        file.Value);
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Auto-save error: {ex.Message}");
+            }
+        }
+
+        modifiedFiles.Clear();
+    }
+
+    private async Task RunCode()
+    {
+        await RunCodeWithInput(null);
+    }
+
+    private async Task RunCodeWithInput(string? input)
+    {
+        if (programmingExam == null || isRunningCode) return;
+
+        isRunningCode = true;
+        executionCts = new CancellationTokenSource();
+        
+        consoleEntries.Add(new ConsolePanel.ConsoleEntry
+        {
+            Type = ConsoleEntryType.System,
+            Content = "Compiling and running...",
+            Timestamp = DateTime.Now
+        });
+        StateHasChanged();
+
+        try
+        {
+            // Save all files first
+            await AutoSaveFiles();
+
+            // Gather all files
+            var files = studentFiles.ToDictionary(f => f.FilePath, f => f.Content);
+
+            // Execute code
+            var result = await CodeExecutionService.ExecuteCodeAsync(
+                programmingExam.Language,
+                files,
+                input,
+                30);
+
+            if (!string.IsNullOrEmpty(result.CompilationError))
+            {
+                consoleEntries.Add(new ConsolePanel.ConsoleEntry
+                {
+                    Type = ConsoleEntryType.Error,
+                    Content = $"Compilation Error:\n{result.CompilationError}",
+                    Timestamp = DateTime.Now
+                });
+            }
+            else if (result.TimedOut)
+            {
+                consoleEntries.Add(new ConsolePanel.ConsoleEntry
+                {
+                    Type = ConsoleEntryType.Error,
+                    Content = "Execution timed out (30 seconds limit)",
+                    Timestamp = DateTime.Now
+                });
+            }
+            else
+            {
+                if (!string.IsNullOrEmpty(result.Output))
+                {
+                    consoleEntries.Add(new ConsolePanel.ConsoleEntry
+                    {
+                        Type = ConsoleEntryType.Output,
+                        Content = result.Output,
+                        Timestamp = DateTime.Now
+                    });
+                }
+
+                if (!string.IsNullOrEmpty(result.ErrorOutput))
+                {
+                    consoleEntries.Add(new ConsolePanel.ConsoleEntry
+                    {
+                        Type = ConsoleEntryType.Error,
+                        Content = result.ErrorOutput,
+                        Timestamp = DateTime.Now
+                    });
+                }
+
+                consoleEntries.Add(new ConsolePanel.ConsoleEntry
+                {
+                    Type = ConsoleEntryType.System,
+                    Content = $"Process finished with exit code {result.ExitCode} ({result.ExecutionTimeMs}ms)",
+                    Timestamp = DateTime.Now
+                });
+            }
+        }
+        catch (Exception ex)
+        {
+            consoleEntries.Add(new ConsolePanel.ConsoleEntry
+            {
+                Type = ConsoleEntryType.Error,
+                Content = $"Execution error: {ex.Message}",
+                Timestamp = DateTime.Now
+            });
+        }
+        finally
+        {
+            isRunningCode = false;
+            executionCts = null;
+            StateHasChanged();
+        }
+    }
+
+    private void StopExecution()
+    {
+        executionCts?.Cancel();
+        isRunningCode = false;
+        consoleEntries.Add(new ConsolePanel.ConsoleEntry
+        {
+            Type = ConsoleEntryType.System,
+            Content = "Execution stopped by user",
+            Timestamp = DateTime.Now
+        });
+        StateHasChanged();
+    }
+
+    private void ClearConsole()
+    {
+        consoleEntries.Clear();
+        StateHasChanged();
+    }
+
+    private async Task OnConsoleInput(string input)
+    {
+        consoleEntries.Add(new ConsolePanel.ConsoleEntry
+        {
+            Type = ConsoleEntryType.Input,
+            Content = $"> {input}",
+            Timestamp = DateTime.Now
+        });
+        // Input handling would go here for interactive execution
+    }
+
+    private async Task OnTaskSelected(ProgrammingTask task)
+    {
+        selectedTask = task;
+
+        // Navigate to target file if specified
+        if (!string.IsNullOrEmpty(task.TargetFiles))
+        {
+            var targetFile = task.TargetFiles.Split(',').FirstOrDefault()?.Trim();
+            if (!string.IsNullOrEmpty(targetFile))
+            {
+                var file = studentFiles.FirstOrDefault(f => f.FilePath.Contains(targetFile) || f.FileName == targetFile);
+                if (file != null)
+                {
+                    // Add to tabs if not already open
+                    if (!openTabs.Any(t => t.FilePath == file.FilePath))
+                    {
+                        openTabs.Add(file);
+                    }
+                    await OnFileSelected(file);
+                }
+            }
+        }
+
+        // Update task progress to InProgress if NotStarted
+        if (currentAttempt != null)
+        {
+            var progress = taskProgressList.FirstOrDefault(tp => tp.ProgrammingTaskId == task.Id);
+            if (progress?.Status == ProgrammingTaskStatus.NotStarted)
+            {
+                await ProgrammingExamService.UpdateTaskProgressAsync(
+                    currentAttempt.Id, task.Id, ProgrammingTaskStatus.InProgress);
+                progress.Status = ProgrammingTaskStatus.InProgress;
+            }
+        }
+    }
+
+    private async Task MarkTaskStatus(ProgrammingTaskStatus status)
+    {
+        if (selectedTask == null || currentAttempt == null) return;
+
+        await ProgrammingExamService.UpdateTaskProgressAsync(
+            currentAttempt.Id,
+            selectedTask.Id,
+            status,
+            status == ProgrammingTaskStatus.MarkedForReview,
+            status == ProgrammingTaskStatus.NeedsFeedback);
+
+        var progress = taskProgressList.FirstOrDefault(tp => tp.ProgrammingTaskId == selectedTask.Id);
+        if (progress != null)
+        {
+            progress.Status = status;
+            progress.IsMarkedForReview = status == ProgrammingTaskStatus.MarkedForReview;
+            progress.RequiresFeedback = status == ProgrammingTaskStatus.NeedsFeedback;
+        }
+
+        var statusText = status switch
+        {
+            ProgrammingTaskStatus.Completed => "completed",
+            ProgrammingTaskStatus.MarkedForReview => "marked for review",
+            ProgrammingTaskStatus.NeedsFeedback => "marked for feedback",
+            _ => "updated"
+        };
+
+        NotificationService.Notify(NotificationSeverity.Success, "Task Updated", $"Task {statusText}");
+        StateHasChanged();
+    }
+
+    private async Task ShowOverview()
+    {
+        await DialogService.OpenAsync("Project Overview", ds =>
+            @<RadzenStack Gap="1rem">
+                <RadzenText>@programmingExam?.Description</RadzenText>
+                <RadzenText TextStyle="TextStyle.Subtitle2">Tasks:</RadzenText>
+                @foreach (var task in tasks)
+                {
+                    <RadzenCard>
+                        <RadzenText TextStyle="TextStyle.Body1"><strong>@task.Title</strong> (@task.Points pts)</RadzenText>
+                    </RadzenCard>
+                }
+            </RadzenStack>,
+            new DialogOptions { Width = "500px" });
+    }
+
+    private async Task ViewDataFile()
+    {
+        // Check both studentFiles and starterFiles for data files
+        var dataFile = studentFiles.FirstOrDefault(f => 
+            f.FileName.EndsWith(".csv") || 
+            f.FileName.EndsWith(".json") ||
+            f.FileName.EndsWith(".txt"));
+        
+        var starterDataFile = starterFiles.FirstOrDefault(f => 
+            f.FileName.EndsWith(".csv") || 
+            f.FileName.EndsWith(".json") ||
+            f.FileName.EndsWith(".txt"));
+
+        string? fileName = null;
+        string? filePath = null;
+        string content = "";
+
+        if (dataFile != null)
+        {
+            fileName = dataFile.FileName;
+            filePath = dataFile.FilePath;
+        }
+        else if (starterDataFile != null)
+        {
+            fileName = starterDataFile.FileName;
+            filePath = starterDataFile.FilePath;
+        }
+
+        if (fileName != null && filePath != null)
+        {
+            // Get content from fileContents dictionary to get the current state
+            content = GetFileContent(filePath);
+            
+            await DialogService.OpenAsync(fileName, ds =>
+                @<div style="max-height: 400px; overflow: auto; font-family: monospace; font-size: 0.875rem; white-space: pre; background: #f5f5f5; padding: 1rem; border-radius: 4px;">
+                    @content
+                </div>,
+                new DialogOptions { Width = "700px" });
+        }
+    }
+
+    private async Task CreateNewFile(string filePath)
+    {
+        if (currentAttempt == null || string.IsNullOrEmpty(filePath)) return;
+
+        // Check if file already exists
+        if (studentFiles.Any(f => f.FilePath == filePath) || starterFiles.Any(f => f.FilePath == filePath))
+        {
+            NotificationService.Notify(NotificationSeverity.Warning, "File Exists", $"A file with this path already exists");
+            return;
+        }
+
+        var newFile = new StudentProjectFile
+        {
+            ProgrammingExamAttemptId = currentAttempt.Id,
+            FilePath = filePath,
+            FileName = Path.GetFileName(filePath),
+            Content = GetDefaultContent(filePath)
+        };
+
+        studentFiles.Add(newFile);
+        await ProgrammingExamService.SaveStudentFileAsync(
+            currentAttempt.Id, newFile.FilePath, newFile.FileName, newFile.Content);
+        
+        fileContents[filePath] = newFile.Content;
+        openTabs.Add(newFile);
+        selectedFile = newFile;
+        
+        NotificationService.Notify(NotificationSeverity.Success, "File Created", $"{newFile.FileName} created");
+        StateHasChanged();
+    }
+
+    private async Task CreateNewFolder(string folderPath)
+    {
+        if (currentAttempt == null || string.IsNullOrEmpty(folderPath)) return;
+
+        // Create a placeholder file to make the folder appear
+        var placeholderPath = $"{folderPath}/.gitkeep";
+        
+        if (studentFiles.Any(f => f.FilePath.StartsWith(folderPath + "/")))
+        {
+            NotificationService.Notify(NotificationSeverity.Warning, "Folder Exists", $"A folder with this path already exists");
+            return;
+        }
+
+        var placeholder = new StudentProjectFile
+        {
+            ProgrammingExamAttemptId = currentAttempt.Id,
+            FilePath = placeholderPath,
+            FileName = ".gitkeep",
+            Content = ""
+        };
+
+        studentFiles.Add(placeholder);
+        await ProgrammingExamService.SaveStudentFileAsync(
+            currentAttempt.Id, placeholder.FilePath, placeholder.FileName, placeholder.Content);
+
+        NotificationService.Notify(NotificationSeverity.Success, "Folder Created", $"Folder created at {folderPath}");
+        StateHasChanged();
+    }
+
+    private async Task DeleteFile(StudentProjectFile file)
+    {
+        if (currentAttempt == null || file == null) return;
+
+        // Check if it's a read-only file
+        if (IsFileReadOnly(file.FilePath))
+        {
+            NotificationService.Notify(NotificationSeverity.Warning, "Cannot Delete", "This file is read-only");
+            return;
+        }
+
+        try
+        {
+            await ProgrammingExamService.DeleteStudentFileAsync(currentAttempt.Id, file.FilePath);
+            
+            studentFiles.RemoveAll(f => f.FilePath == file.FilePath);
+            openTabs.RemoveAll(t => t.FilePath == file.FilePath);
+            modifiedFiles.Remove(file.FilePath);
+            fileContents.Remove(file.FilePath);
+
+            if (selectedFile?.FilePath == file.FilePath)
+            {
+                selectedFile = openTabs.FirstOrDefault();
+            }
+
+            NotificationService.Notify(NotificationSeverity.Success, "Deleted", $"{file.FileName} deleted");
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            NotificationService.Notify(NotificationSeverity.Error, "Delete Failed", ex.Message);
+        }
+    }
+
+    private async Task RenameFile((StudentProjectFile file, string newPath) args)
+    {
+        if (currentAttempt == null) return;
+
+        var (file, newPath) = args;
+
+        if (IsFileReadOnly(file.FilePath))
+        {
+            NotificationService.Notify(NotificationSeverity.Warning, "Cannot Rename", "This file is read-only");
+            return;
+        }
+
+        try
+        {
+            var content = fileContents.GetValueOrDefault(file.FilePath, file.Content);
+            var newFileName = Path.GetFileName(newPath);
+            
+            // Delete old file
+            await ProgrammingExamService.DeleteStudentFileAsync(currentAttempt.Id, file.FilePath);
+            
+            // Create new file
+            await ProgrammingExamService.SaveStudentFileAsync(currentAttempt.Id, newPath, newFileName, content);
+            
+            // Update in-memory state
+            studentFiles.RemoveAll(f => f.FilePath == file.FilePath);
+            var newFile = new StudentProjectFile
+            {
+                ProgrammingExamAttemptId = currentAttempt.Id,
+                FilePath = newPath,
+                FileName = newFileName,
+                Content = content
+            };
+            studentFiles.Add(newFile);
+            
+            // Update tabs
+            var tabIndex = openTabs.FindIndex(t => t.FilePath == file.FilePath);
+            if (tabIndex >= 0)
+            {
+                openTabs[tabIndex] = newFile;
+            }
+            
+            // Update content tracking
+            fileContents.Remove(file.FilePath);
+            fileContents[newPath] = content;
+            modifiedFiles.Remove(file.FilePath);
+            
+            if (selectedFile?.FilePath == file.FilePath)
+            {
+                selectedFile = newFile;
+            }
+
+            NotificationService.Notify(NotificationSeverity.Success, "Renamed", $"File renamed to {newFileName}");
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            NotificationService.Notify(NotificationSeverity.Error, "Rename Failed", ex.Message);
+        }
+    }
+
+    private string GetDefaultContent(string fileName)
+    {
+        var extension = Path.GetExtension(fileName).ToLowerInvariant();
+        return extension switch
+        {
+            ".java" => $"public class {Path.GetFileNameWithoutExtension(fileName)} {{\n    \n}}\n",
+            ".py" => "# Python file\n",
+            ".cs" => $"namespace Project\n{{\n    public class {Path.GetFileNameWithoutExtension(fileName)}\n    {{\n        \n    }}\n}}\n",
+            ".js" => "// JavaScript file\n",
+            ".ts" => "// TypeScript file\n",
+            _ => ""
+        };
+    }
+
+    private async Task RestartProject()
+    {
+        var confirm = await DialogService.Confirm(
+            "Are you sure you want to restart the project? All your changes will be lost and reset to the original files.",
+            "Restart Project",
+            new ConfirmOptions { OkButtonText = "Yes, Restart", CancelButtonText = "Cancel" });
+
+        if (confirm == true && currentAttempt != null && programmingExam != null)
+        {
+            try
+            {
+                // Reset all files to starter content in the database
+                await ProgrammingExamService.ResetStudentFilesToStarterAsync(currentAttempt.Id, starterFiles);
+
+                // Reload student files from database
+                studentFiles = (await ProgrammingExamService.GetStudentFilesAsync(currentAttempt.Id)).ToList();
+
+                // Clear all tracking
+                modifiedFiles.Clear();
+                fileContents.Clear();
+                openTabs.Clear();
+                
+                // Select first file
+                selectedFile = studentFiles.FirstOrDefault();
+                if (selectedFile != null)
+                {
+                    openTabs.Add(selectedFile);
+                }
+                
+                ClearConsole();
+                
+                NotificationService.Notify(NotificationSeverity.Info, "Project Restarted", "All files have been reset to their original content");
+                StateHasChanged();
+            }
+            catch (Exception ex)
+            {
+                NotificationService.Notify(NotificationSeverity.Error, "Restart Failed", $"Could not restart project: {ex.Message}");
+            }
+        }
+    }
+
+    private async Task SubmitProject()
+    {
+        var confirm = await DialogService.Confirm(
+            "Are you sure you want to submit your project? You will not be able to make any more changes after submission.",
+            "Submit Project",
+            new ConfirmOptions { OkButtonText = "Yes, Submit", CancelButtonText = "Continue Working" });
+
+        if (confirm == true)
+        {
+            await AutoSaveFiles();
+            await FinalSubmit();
+        }
+    }
+
+    private async Task AutoSubmitExam()
+    {
+        await AutoSaveFiles();
+        NotificationService.Notify(NotificationSeverity.Warning, "Time's Up!", "Your exam has been automatically submitted");
+        await FinalSubmit();
+    }
+
+    private async Task FinalSubmit()
+    {
+        if (currentAttempt == null) return;
+
+        try
+        {
+            // Submit the exam
+            await ProgrammingExamService.SubmitProgrammingExamAsync(currentAttempt.Id);
+            
+            // Start AI evaluation in background
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await ProgrammingExamService.EvaluateAttemptWithAIAsync(currentAttempt.Id);
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"AI evaluation failed: {ex.Message}");
+                }
+            });
+            
+            // Navigate to evaluation page (will show loading while AI processes)
+            Navigation.NavigateTo($"/student/exam-evaluation/{currentAttempt.Id}");
+        }
+        catch (Exception ex)
+        {
+            NotificationService.Notify(NotificationSeverity.Error, "Submission Failed", ex.Message);
+        }
+    }
+
+    private bool IsFileReadOnly(string filePath)
+    {
+        var starterFile = starterFiles.FirstOrDefault(f => f.FilePath == filePath);
+        return starterFile?.IsReadOnly ?? false;
+    }
+
+    private bool IsFileModified(string filePath)
+    {
+        return modifiedFiles.ContainsKey(filePath);
+    }
+
+    private bool HasDataFile()
+    {
+        return studentFiles.Any(f => 
+            f.FileName.EndsWith(".csv") || 
+            f.FileName.EndsWith(".json") ||
+            f.FileName.EndsWith(".txt")) ||
+            starterFiles.Any(f => 
+            f.FileName.EndsWith(".csv") || 
+            f.FileName.EndsWith(".json") ||
+            f.FileName.EndsWith(".txt"));
+    }
+
+    private BadgeStyle GetTimerBadgeStyle()
+    {
+        if (timeRemaining.TotalMinutes <= 5)
+            return BadgeStyle.Danger;
+        if (timeRemaining.TotalMinutes <= 15)
+            return BadgeStyle.Warning;
+        return BadgeStyle.Info;
+    }
+
+    public void Dispose()
+    {
+        examTimer?.Dispose();
+        autoSaveTimer?.Dispose();
+        executionCts?.Cancel();
+        executionCts?.Dispose();
+    }
+}

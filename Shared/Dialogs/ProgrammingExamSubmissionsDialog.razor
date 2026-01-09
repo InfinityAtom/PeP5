@@ -1,0 +1,135 @@
+@using Microsoft.AspNetCore.Components.Authorization
+@inject IProgrammingExamService ProgrammingExamService
+@inject NavigationManager Navigation
+@inject DialogService DialogService
+
+<RadzenStack Gap="1rem">
+    <RadzenText TextStyle="TextStyle.H5">@ProgrammingExam.Title</RadzenText>
+    <RadzenText TextStyle="TextStyle.Body2" class="text-muted">
+        @ProgrammingExam.Language.ToString() • @ProgrammingExam.DurationMinutes minutes • @ProgrammingExam.TotalPoints points
+    </RadzenText>
+
+    @if (attempts == null)
+    {
+        <RadzenProgressBarCircular ShowValue="false" Mode="ProgressBarMode.Indeterminate" />
+    }
+    else if (!attempts.Any())
+    {
+        <RadzenAlert AlertStyle="AlertStyle.Info" Variant="Variant.Flat">
+            No submissions yet for this exam.
+        </RadzenAlert>
+    }
+    else
+    {
+        <RadzenDataGrid TItem="ProgrammingExamAttempt" Data="@attempts" AllowSorting="true" PagerPosition="PagerPosition.Bottom"
+                        AllowPaging="true" PageSize="10" Style="min-height: 300px;">
+            <Columns>
+                <RadzenDataGridColumn TItem="ProgrammingExamAttempt" Title="Student" Width="200px">
+                    <Template Context="data">
+                        <RadzenStack Gap="0.25rem">
+                            <RadzenText Style="margin:0; font-weight: 500;">@data.Student.FirstName @data.Student.LastName</RadzenText>
+                            <RadzenText TextStyle="TextStyle.Caption" class="text-muted">@data.Student.StudentId</RadzenText>
+                        </RadzenStack>
+                    </Template>
+                </RadzenDataGridColumn>
+                <RadzenDataGridColumn TItem="ProgrammingExamAttempt" Property="Status" Title="Status" Width="120px">
+                    <Template Context="data">
+                        <RadzenBadge BadgeStyle="@GetStatusBadgeStyle(data.Status)" Text="@data.Status.ToString()" />
+                    </Template>
+                </RadzenDataGridColumn>
+                <RadzenDataGridColumn TItem="ProgrammingExamAttempt" Property="TotalScore" Title="Score" Width="100px">
+                    <Template Context="data">
+                        @if (data.Status == ProgrammingExamStatus.Completed)
+                        {
+                            <RadzenText Style="font-weight: 500;">@data.TotalScore.ToString("0.0") / @ProgrammingExam.TotalPoints</RadzenText>
+                        }
+                        else
+                        {
+                            <RadzenText class="text-muted">-</RadzenText>
+                        }
+                    </Template>
+                </RadzenDataGridColumn>
+                <RadzenDataGridColumn TItem="ProgrammingExamAttempt" Title="AI Evaluated" Width="120px" TextAlign="TextAlign.Center">
+                    <Template Context="data">
+                        @{
+                            var evaluated = data.TaskProgress?.Any(tp => tp.AIEvaluatedAt.HasValue) ?? false;
+                        }
+                        @if (evaluated)
+                        {
+                            <RadzenIcon Icon="check_circle" Style="color: var(--rz-success);" />
+                        }
+                        else
+                        {
+                            <RadzenIcon Icon="hourglass_empty" Style="color: var(--rz-warning);" />
+                        }
+                    </Template>
+                </RadzenDataGridColumn>
+                <RadzenDataGridColumn TItem="ProgrammingExamAttempt" Property="SubmittedAt" Title="Submitted" Width="150px">
+                    <Template Context="data">
+                        @if (data.SubmittedAt.HasValue)
+                        {
+                            <RadzenText>@data.SubmittedAt.Value.ToString("MMM dd, HH:mm")</RadzenText>
+                        }
+                        else
+                        {
+                            <RadzenText class="text-muted">In Progress</RadzenText>
+                        }
+                    </Template>
+                </RadzenDataGridColumn>
+                <RadzenDataGridColumn TItem="ProgrammingExamAttempt" Title="Actions" Width="120px" TextAlign="TextAlign.Center">
+                    <Template Context="data">
+                        <RadzenButton Icon="grading" Text="Grade" ButtonStyle="ButtonStyle.Primary" Size="ButtonSize.Small"
+                                     Click="@(() => GradeSubmission(data))"
+                                     Disabled="@(data.Status != ProgrammingExamStatus.Completed)" />
+                    </Template>
+                </RadzenDataGridColumn>
+            </Columns>
+        </RadzenDataGrid>
+    }
+</RadzenStack>
+
+<div class="rz-mt-4" style="display: flex; justify-content: flex-end; gap: 0.5rem;">
+    <RadzenButton Text="Close" ButtonStyle="ButtonStyle.Light" Click="@(() => DialogService.Close())" />
+</div>
+
+@code {
+    [Parameter] public ProgrammingExam ProgrammingExam { get; set; } = default!;
+
+    private List<ProgrammingExamAttempt>? attempts;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAttempts();
+    }
+
+    private async Task LoadAttempts()
+    {
+        try
+        {
+            attempts = await ProgrammingExamService.GetAttemptsForExamAsync(ProgrammingExam.Id);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading attempts: {ex.Message}");
+            attempts = new List<ProgrammingExamAttempt>();
+        }
+    }
+
+    private void GradeSubmission(ProgrammingExamAttempt attempt)
+    {
+        DialogService.Close();
+        Navigation.NavigateTo($"/teacher/grade-programming-exam/{attempt.Id}");
+    }
+
+    private BadgeStyle GetStatusBadgeStyle(ProgrammingExamStatus status)
+    {
+        return status switch
+        {
+            ProgrammingExamStatus.InProgress => BadgeStyle.Warning,
+            ProgrammingExamStatus.Completed => BadgeStyle.Success,
+            ProgrammingExamStatus.TimeExpired => BadgeStyle.Danger,
+            ProgrammingExamStatus.Abandoned => BadgeStyle.Danger,
+            _ => BadgeStyle.Light
+        };
+    }
+}

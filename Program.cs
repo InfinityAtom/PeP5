@@ -57,11 +57,20 @@ builder.Services.AddScoped<NotificationService>();
 builder.Services.AddScoped<TooltipService>();
 builder.Services.AddScoped<ContextMenuService>();
 
+// HTTP Client for external APIs
+builder.Services.AddHttpClient("PistonApi", client =>
+{
+    client.BaseAddress = new Uri("https://emkc.org/api/v2/piston/");
+    client.Timeout = TimeSpan.FromSeconds(60);
+});
+
 // Application services
 builder.Services.AddScoped<IExamService, ExamService>();
 builder.Services.AddScoped<IExamAppService, ExamAppService>();
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IOpenAIService, OpenAIService>();
+builder.Services.AddScoped<IProgrammingExamService, ProgrammingExamService>();
+builder.Services.AddScoped<ICodeExecutionService, CodeExecutionService>();
 
 var app = builder.Build();
 

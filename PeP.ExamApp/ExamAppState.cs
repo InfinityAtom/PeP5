@@ -20,6 +20,7 @@ public class ExamAppState
     public int? AttemptId { get; set; }
     public string? LaunchToken { get; set; }
     public DateTime? LaunchExpiresAtUtc { get; set; }
+    public bool IsProgrammingExam { get; set; }
 
     public void ConfigureServer(string serverUrl)
     {

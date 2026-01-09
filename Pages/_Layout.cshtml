@@ -51,15 +51,32 @@
     <!-- Radzen Blazor JS -->
     <script src="_content/Radzen.Blazor/Radzen.Blazor.js"></script>
     
+    <!-- Monaco Editor -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.44.0/min/vs/loader.min.js"></script>
+    <script>
+        require.config({ paths: { 'vs': 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.44.0/min/vs' }});
+        require(['vs/editor/editor.main'], function() {
+            console.log('Monaco Editor loaded');
+        });
+    </script>
+    
+    <!-- PeP IDE JS -->
+    <script src="js/pep-ide.js"></script>
+    
     <!-- SignalR -->
     <script src="_framework/blazor.server.js"></script>
 
     <!-- Custom JS Functions -->
     <script>
-        window.downloadFile = (filename, base64Data) => {
+        window.downloadFile = function(filename, mimeType, base64Data) {
+            // Support old 2-arg signature for backwards compatibility
+            if (base64Data === undefined) {
+                base64Data = mimeType;
+                mimeType = 'text/csv';
+            }
             const link = document.createElement('a');
             link.download = filename;
-            link.href = 'data:text/csv;base64,' + base64Data;
+            link.href = 'data:' + mimeType + ';base64,' + base64Data;
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);

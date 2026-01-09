@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using PeP.Data;
 
@@ -11,9 +12,10 @@ using PeP.Data;
 namespace PeP.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20251223131446_SeparateExamCodeForeignKeys")]
+    partial class SeparateExamCodeForeignKeys
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -620,70 +622,70 @@ namespace PeP.Migrations
                         {
                             Id = 1,
                             Key = "PlatformName",
-                            LastModified = new DateTime(2026, 1, 8, 14, 2, 5, 165, DateTimeKind.Utc).AddTicks(7324),
+                            LastModified = new DateTime(2025, 12, 23, 13, 14, 45, 920, DateTimeKind.Utc).AddTicks(5001),
                             Value = "PeP - Programming Examination Platform"
                         },
                         new
                         {
                             Id = 2,
                             Key = "Version",
-                            LastModified = new DateTime(2026, 1, 8, 14, 2, 5, 165, DateTimeKind.Utc).AddTicks(7327),
+                            LastModified = new DateTime(2025, 12, 23, 13, 14, 45, 920, DateTimeKind.Utc).AddTicks(5005),
                             Value = "5.0"
                         },
                         new
                         {
                             Id = 3,
                             Key = "Company",
-                            LastModified = new DateTime(2026, 1, 8, 14, 2, 5, 165, DateTimeKind.Utc).AddTicks(7328),
+                            LastModified = new DateTime(2025, 12, 23, 13, 14, 45, 920, DateTimeKind.Utc).AddTicks(5007),
                             Value = "Infinity Atom"
                         },
                         new
                         {
                             Id = 4,
                             Key = "Copyright",
-                            LastModified = new DateTime(2026, 1, 8, 14, 2, 5, 165, DateTimeKind.Utc).AddTicks(7329),
+                            LastModified = new DateTime(2025, 12, 23, 13, 14, 45, 920, DateTimeKind.Utc).AddTicks(5008),
                             Value = "Copyright 2021 - 2025"
                         },
                         new
                         {
                             Id = 5,
                             Key = "OpenAIApiKey",
-                            LastModified = new DateTime(2026, 1, 8, 14, 2, 5, 165, DateTimeKind.Utc).AddTicks(7330),
+                            LastModified = new DateTime(2025, 12, 23, 13, 14, 45, 920, DateTimeKind.Utc).AddTicks(5010),
                             Value = ""
                         },
                         new
                         {
                             Id = 6,
                             Key = "DefaultExamDurationMinutes",
-                            LastModified = new DateTime(2026, 1, 8, 14, 2, 5, 165, DateTimeKind.Utc).AddTicks(7330),
+                            LastModified = new DateTime(2025, 12, 23, 13, 14, 45, 920, DateTimeKind.Utc).AddTicks(5010),
                             Value = "120"
                         },
                         new
                         {
                             Id = 7,
                             Key = "EmailServer",
-                            LastModified = new DateTime(2026, 1, 8, 14, 2, 5, 165, DateTimeKind.Utc).AddTicks(7331),
+                            LastModified = new DateTime(2025, 12, 23, 13, 14, 45, 920, DateTimeKind.Utc).AddTicks(5011),
                             Value = ""
                         },
                         new
                         {
                             Id = 8,
                             Key = "EmailPort",
-                            LastModified = new DateTime(2026, 1, 8, 14, 2, 5, 165, DateTimeKind.Utc).AddTicks(7372),
+                            LastModified = new DateTime(2025, 12, 23, 13, 14, 45, 920, DateTimeKind.Utc).AddTicks(5012),
                             Value = "587"
                         },
                         new
                         {
                             Id = 9,
                             Key = "EmailUsername",
-                            LastModified = new DateTime(2026, 1, 8, 14, 2, 5, 165, DateTimeKind.Utc).AddTicks(7374),
+                            LastModified = new DateTime(2025, 12, 23, 13, 14, 45, 920, DateTimeKind.Utc).AddTicks(5012),
                             Value = ""
                         },
                         new
                         {
                             Id = 10,
                             Key = "EmailPassword",
-                            LastModified = new DateTime(2026, 1, 8, 14, 2, 5, 165, DateTimeKind.Utc).AddTicks(7375),
+                            LastModified = new DateTime(2025, 12, 23, 13, 14, 45, 920, DateTimeKind.Utc).AddTicks(5013),
                             Value = ""
                         });
                 });
@@ -761,15 +763,6 @@ namespace PeP.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"), 1L, 1);
 
-                    b.Property<bool>("AIEvaluationCompleted")
-                        .HasColumnType("bit");
-
-                    b.Property<DateTime?>("AIEvaluationCompletedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<DateTime?>("AIEvaluationStartedAt")
-                        .HasColumnType("datetime2");
-
                     b.Property<string>("ExamCodeUsed")
                         .HasMaxLength(20)
                         .HasColumnType("nvarchar(20)");
@@ -779,9 +772,6 @@ namespace PeP.Migrations
 
                     b.Property<int>("ProgrammingExamId")
                         .HasColumnType("int");
-
-                    b.Property<bool>("RequestTeacherReevaluation")
-                        .HasColumnType("bit");
 
                     b.Property<DateTime>("StartedAt")
                         .HasColumnType("datetime2");
@@ -794,19 +784,6 @@ namespace PeP.Migrations
                         .HasColumnType("nvarchar(450)");
 
                     b.Property<DateTime?>("SubmittedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<bool>("TeacherReevaluationCompleted")
-                        .HasColumnType("bit");
-
-                    b.Property<DateTime?>("TeacherReevaluationCompletedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("TeacherReevaluationNotes")
-                        .HasMaxLength(2000)
-                        .HasColumnType("nvarchar(2000)");
-
-                    b.Property<DateTime?>("TeacherReevaluationRequestedAt")
                         .HasColumnType("datetime2");
 
                     b.Property<decimal>("TotalScore")
@@ -1106,33 +1083,6 @@ namespace PeP.Migrations
                         .HasColumnType("int");
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"), 1L, 1);
-
-                    b.Property<string>("AICodeSnippets")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<DateTime?>("AIEvaluatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("AIFeedback")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<decimal?>("AIScore")
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<string>("AISolutionSuggestion")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<decimal?>("CodeQualityScore")
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<decimal?>("CompletionPercentage")
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<decimal?>("CorrectnessScore")
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<decimal?>("EfficiencyScore")
-                        .HasColumnType("decimal(18,2)");
 
                     b.Property<bool>("IsMarkedForReview")
                         .HasColumnType("bit");

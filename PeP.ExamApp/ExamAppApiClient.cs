@@ -75,17 +75,17 @@ public class ExamAppApiClient
         return (payload.Success, payload.Error, payload.AuthorizationToken, payload.ExpiresAtUtc, payload.Exam);
     }
 
-    public async Task<(bool Success, string? Error, int? AttemptId, string? LaunchToken, DateTime? ExpiresAtUtc)> StartAsync(string authorizationToken)
+    public async Task<(bool Success, string? Error, int? AttemptId, string? LaunchToken, DateTime? ExpiresAtUtc, bool IsProgrammingExam)> StartAsync(string authorizationToken)
     {
         using var response = await _httpClient.PostAsJsonAsync("/api/exam-app/start", new StartRequest(authorizationToken), JsonOptions);
         var payload = await response.Content.ReadFromJsonAsync<StartResponse>(JsonOptions);
 
         if (payload == null)
         {
-            return (false, "No response from server.", null, null, null);
+            return (false, "No response from server.", null, null, null, false);
         }
 
-        return (payload.Success, payload.Error, payload.AttemptId, payload.LaunchToken, payload.ExpiresAtUtc);
+        return (payload.Success, payload.Error, payload.AttemptId, payload.LaunchToken, payload.ExpiresAtUtc, payload.IsProgrammingExam);
     }
 
     public async Task<(bool Success, string? Error)> SubmitExamAsync(int attemptId)
@@ -125,7 +125,7 @@ public class ExamAppApiClient
 
     public record StartRequest(string AuthorizationToken);
 
-    public record StartResponse(bool Success, string? Error, int? AttemptId, string? LaunchToken, DateTime? ExpiresAtUtc);
+    public record StartResponse(bool Success, string? Error, int? AttemptId, string? LaunchToken, DateTime? ExpiresAtUtc, bool IsProgrammingExam = false);
 
     public record SubmitRequest(int AttemptId);
 

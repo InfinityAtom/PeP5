@@ -1,0 +1,199 @@
+@using PeP.Models
+@implements IAsyncDisposable
+
+<div class="console-panel" style="height: 100%; display: flex; flex-direction: column; background: #1e1e1e; font-family: 'Cascadia Code', 'Consolas', 'Courier New', monospace;">
+    <div class="console-header" style="padding: 0.5rem 1rem; background: #2d2d2d; border-bottom: 1px solid #404040; display: flex; justify-content: space-between; align-items: center;">
+        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
+            <RadzenIcon Icon="terminal" Style="color: #4fc3f7;" />
+            <RadzenText TextStyle="TextStyle.Subtitle2" Style="margin: 0; color: #e0e0e0;">Console</RadzenText>
+            @if (IsRunning)
+            {
+                <RadzenBadge BadgeStyle="BadgeStyle.Success" IsPill="true" Text="Running" />
+            }
+        </RadzenStack>
+        <RadzenStack Orientation="Orientation.Horizontal" Gap="0.25rem">
+            <RadzenButton Icon="play_arrow" Size="ButtonSize.ExtraSmall" ButtonStyle="ButtonStyle.Success" 
+                         Click="@OnRunClick" Disabled="@IsRunning" title="Run (F5)" />
+            <RadzenButton Icon="stop" Size="ButtonSize.ExtraSmall" ButtonStyle="ButtonStyle.Danger" 
+                         Click="@OnStopClick" Disabled="@(!IsRunning)" title="Stop" />
+            <RadzenButton Icon="delete_sweep" Size="ButtonSize.ExtraSmall" ButtonStyle="ButtonStyle.Light" 
+                         Click="@OnClearClick" title="Clear Console" />
+        </RadzenStack>
+    </div>
+
+    <div class="console-output" @ref="OutputContainer" 
+         style="flex: 1; overflow-y: auto; padding: 0.75rem 1rem; color: #d4d4d4; font-size: 0.875rem; line-height: 1.5;">
+        @foreach (var entry in ConsoleEntries)
+        {
+            <div class="console-entry @GetEntryClass(entry.Type)" style="white-space: pre-wrap; word-break: break-word;">
+                @if (entry.Type == ConsoleEntryType.System)
+                {
+                    <span style="color: #808080;">[@entry.Timestamp.ToString("HH:mm:ss")] </span>
+                }
+                <span style="@GetEntryStyle(entry.Type)">@entry.Content</span>
+            </div>
+        }
+        @if (IsWaitingForInput)
+        {
+            <div class="console-input-line" style="display: flex; align-items: center; margin-top: 0.5rem;">
+                <span style="color: #4fc3f7; margin-right: 0.5rem;">></span>
+                <input type="text" @ref="InputField" @bind="CurrentInput" @bind:event="oninput"
+                       @onkeydown="OnInputKeyDown"
+                       style="flex: 1; background: transparent; border: none; outline: none; color: #d4d4d4; font-family: inherit; font-size: inherit;"
+                       placeholder="Enter input..." />
+            </div>
+        }
+    </div>
+
+    @if (AllowInput && !IsWaitingForInput && !IsRunning)
+    {
+        <div class="console-quick-input" style="padding: 0.5rem 1rem; background: #2d2d2d; border-top: 1px solid #404040;">
+            <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem">
+                <RadzenTextBox @bind-Value="@QuickInput" Placeholder="Quick input (press Enter to send with run)..." 
+                              Style="flex: 1; font-family: 'Cascadia Code', 'Consolas', monospace; font-size: 0.875rem;" />
+                <RadzenButton Text="Run with Input" Icon="send" ButtonStyle="ButtonStyle.Primary" 
+                             Size="ButtonSize.Small" Click="@OnRunWithInputClick" />
+            </RadzenStack>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public List<ConsoleEntry> ConsoleEntries { get; set; } = new();
+    [Parameter] public bool IsRunning { get; set; } = false;
+    [Parameter] public bool IsWaitingForInput { get; set; } = false;
+    [Parameter] public bool AllowInput { get; set; } = true;
+    [Parameter] public EventCallback OnRun { get; set; }
+    [Parameter] public EventCallback<string> OnRunWithInput { get; set; }
+    [Parameter] public EventCallback OnStop { get; set; }
+    [Parameter] public EventCallback OnClear { get; set; }
+    [Parameter] public EventCallback<string> OnInputSubmitted { get; set; }
+
+    [Inject] private IJSRuntime JSRuntime { get; set; } = default!;
+
+    private ElementReference OutputContainer;
+    private ElementReference InputField;
+    private string CurrentInput { get; set; } = string.Empty;
+    private string QuickInput { get; set; } = string.Empty;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        await ScrollToBottom();
+        
+        if (IsWaitingForInput)
+        {
+            try
+            {
+                await InputField.FocusAsync();
+            }
+            catch { }
+        }
+    }
+
+    private async Task ScrollToBottom()
+    {
+        try
+        {
+            await JSRuntime.InvokeVoidAsync("pepConsole.scrollToBottom", OutputContainer);
+        }
+        catch { }
+    }
+
+    private async Task OnRunClick()
+    {
+        await OnRun.InvokeAsync();
+    }
+
+    private async Task OnRunWithInputClick()
+    {
+        await OnRunWithInput.InvokeAsync(QuickInput);
+        QuickInput = string.Empty;
+    }
+
+    private async Task OnStopClick()
+    {
+        await OnStop.InvokeAsync();
+    }
+
+    private async Task OnClearClick()
+    {
+        await OnClear.InvokeAsync();
+    }
+
+    private async Task OnInputKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && !string.IsNullOrEmpty(CurrentInput))
+        {
+            await OnInputSubmitted.InvokeAsync(CurrentInput);
+            CurrentInput = string.Empty;
+        }
+    }
+
+    public void AddEntry(ConsoleEntryType type, string content)
+    {
+        ConsoleEntries.Add(new ConsoleEntry
+        {
+            Type = type,
+            Content = content,
+            Timestamp = DateTime.Now
+        });
+        StateHasChanged();
+    }
+
+    public void AddOutput(string output)
+    {
+        AddEntry(ConsoleEntryType.Output, output);
+    }
+
+    public void AddError(string error)
+    {
+        AddEntry(ConsoleEntryType.Error, error);
+    }
+
+    public void AddSystemMessage(string message)
+    {
+        AddEntry(ConsoleEntryType.System, message);
+    }
+
+    public void Clear()
+    {
+        ConsoleEntries.Clear();
+        StateHasChanged();
+    }
+
+    private string GetEntryClass(ConsoleEntryType type)
+    {
+        return type switch
+        {
+            ConsoleEntryType.Input => "console-input",
+            ConsoleEntryType.Output => "console-output",
+            ConsoleEntryType.Error => "console-error",
+            ConsoleEntryType.System => "console-system",
+            _ => ""
+        };
+    }
+
+    private string GetEntryStyle(ConsoleEntryType type)
+    {
+        return type switch
+        {
+            ConsoleEntryType.Input => "color: #4fc3f7;",
+            ConsoleEntryType.Output => "color: #d4d4d4;",
+            ConsoleEntryType.Error => "color: #f44336;",
+            ConsoleEntryType.System => "color: #808080; font-style: italic;",
+            _ => ""
+        };
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        // Cleanup if needed
+    }
+
+    public class ConsoleEntry
+    {
+        public ConsoleEntryType Type { get; set; }
+        public string Content { get; set; } = string.Empty;
+        public DateTime Timestamp { get; set; } = DateTime.Now;
+    }
+}

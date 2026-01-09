@@ -1,0 +1,35 @@
+@inject DialogService DialogService
+
+<RadzenStack Gap="1rem">
+    <RadzenFormField Text="File Name" Variant="Variant.Outlined">
+        <RadzenTextBox @bind-Value="@fileName" Placeholder="e.g., MyClass.java or utils/helper.py" Style="width: 100%;" />
+    </RadzenFormField>
+
+    <RadzenText TextStyle="TextStyle.Caption" class="text-muted">
+        Include the folder path if needed (e.g., src/MyClass.java)
+    </RadzenText>
+
+    <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.End" Gap="0.5rem">
+        <RadzenButton Text="Cancel" ButtonStyle="ButtonStyle.Light" Click="@Cancel" />
+        <RadzenButton Text="Create" ButtonStyle="ButtonStyle.Primary" Click="@Create" Disabled="@(string.IsNullOrWhiteSpace(fileName))" />
+    </RadzenStack>
+</RadzenStack>
+
+@code {
+    private string fileName = string.Empty;
+
+    private void Cancel()
+    {
+        DialogService.Close(null);
+    }
+
+    private void Create()
+    {
+        if (!string.IsNullOrWhiteSpace(fileName))
+        {
+            // Normalize path separators
+            var normalizedPath = fileName.Replace('\\', '/').Trim('/');
+            DialogService.Close(normalizedPath);
+        }
+    }
+}

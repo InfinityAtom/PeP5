@@ -1,0 +1,732 @@
+@page "/teacher/create-programming-exam"
+@using Microsoft.AspNetCore.Components.Authorization
+@attribute [Authorize(Roles = UserRoles.Teacher)]
+@inject IProgrammingExamService ProgrammingExamService
+@inject IExamService ExamService
+@inject IOpenAIService OpenAIService
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject UserManager<ApplicationUser> UserManager
+@inject NavigationManager Navigation
+@inject NotificationService NotificationService
+@inject DialogService DialogService
+
+<PageTitle>Create Programming Exam - PeP v5.0</PageTitle>
+
+<!-- AI Generation Loading Overlay -->
+@if (isGenerating)
+{
+    <div class="ai-loading-overlay" style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); z-index: 9999; display: flex; align-items: center; justify-content: center;">
+        <RadzenCard Style="padding: 2rem; text-align: center; max-width: 400px;">
+            <RadzenStack Gap="1.5rem" AlignItems="AlignItems.Center">
+                <div style="position: relative;">
+                    <RadzenProgressBarCircular ShowValue="false" Size="ProgressBarCircularSize.Large" />
+                    <RadzenIcon Icon="auto_awesome" Style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 1.5rem; color: var(--rz-primary);" />
+                </div>
+                <RadzenStack Gap="0.5rem" AlignItems="AlignItems.Center">
+                    <RadzenText TextStyle="TextStyle.H5" Style="margin: 0;">Generating with AI</RadzenText>
+                    <RadzenText TextStyle="TextStyle.Body2" class="text-muted" Style="margin: 0;">
+                        Creating project files, tasks, and test cases...
+                    </RadzenText>
+                    <RadzenText TextStyle="TextStyle.Caption" class="text-muted" Style="margin: 0;">
+                        This may take up to 30 seconds
+                    </RadzenText>
+                </RadzenStack>
+            </RadzenStack>
+        </RadzenCard>
+    </div>
+}
+
+<RadzenStack Gap="1rem" Style="max-width: 1400px; margin: 0 auto;">
+    <RadzenBreadCrumb>
+        <RadzenBreadCrumbItem Path="/" Text="Home" Icon="home" />
+        <RadzenBreadCrumbItem Path="/teacher/exams" Text="Exams" Icon="assignment" />
+        <RadzenBreadCrumbItem Text="Create Programming Exam" Icon="code" />
+    </RadzenBreadCrumb>
+
+    <RadzenCard Style="padding: 1.5rem;">
+        <RadzenStack Gap="0.5rem" Style="margin-bottom: 1.5rem;">
+            <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween" AlignItems="AlignItems.Center">
+                <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
+                    <RadzenIcon Icon="code" Style="font-size: 2rem; color: var(--rz-primary);" />
+                    <RadzenText TextStyle="TextStyle.H4" TagName="TagName.H1" Style="margin: 0;">Create Programming Exam</RadzenText>
+                </RadzenStack>
+                <RadzenButton Text="Generate with AI" Icon="auto_awesome" ButtonStyle="ButtonStyle.Secondary" 
+                             Click="@ShowAIGeneratorDialog" Disabled="@isGenerating" />
+            </RadzenStack>
+            <RadzenText TextStyle="TextStyle.Body2" class="text-muted">
+                Create an exam where students write code in a custom IDE environment. You can create tasks manually or use AI to generate them.
+            </RadzenText>
+        </RadzenStack>
+
+        <RadzenTemplateForm TItem="CreateProgrammingExamModel" Data="@examModel" Submit="@HandleSubmit">
+            <RadzenTabs>
+                <Tabs>
+                    <!-- Basic Info Tab -->
+                    <RadzenTabsItem Text="Basic Information">
+                        <RadzenStack Gap="1rem" Style="margin-top: 1rem;">
+                            <RadzenRow Gap="1rem">
+                                <RadzenColumn Size="12" SizeMD="6">
+                                    <RadzenFormField Text="Exam Title" Variant="Variant.Outlined" Style="width: 100%;">
+                                        <RadzenTextBox @bind-Value="@examModel.Title" Name="Title" Placeholder="e.g., Java Programming Midterm" Style="width: 100%;" />
+                                        <RadzenRequiredValidator Component="Title" Text="Title is required" />
+                                    </RadzenFormField>
+                                </RadzenColumn>
+                                <RadzenColumn Size="12" SizeMD="6">
+                                    <RadzenFormField Text="Project Name" Variant="Variant.Outlined" Style="width: 100%;">
+                                        <RadzenTextBox @bind-Value="@examModel.ProjectName" Placeholder="e.g., FootballMatches" Style="width: 100%;" />
+                                    </RadzenFormField>
+                                </RadzenColumn>
+                            </RadzenRow>
+
+                            <RadzenRow Gap="1rem">
+                                <RadzenColumn Size="12" SizeMD="6">
+                                    <RadzenFormField Text="Course" Variant="Variant.Outlined" Style="width: 100%;">
+                                        <RadzenDropDown @bind-Value="@examModel.CourseId" Data="@courses" TextProperty="Name" ValueProperty="Id" 
+                                                       Placeholder="Select a course" Name="CourseId" Style="width: 100%;" />
+                                        <RadzenRequiredValidator Component="CourseId" Text="Course is required" />
+                                    </RadzenFormField>
+                                </RadzenColumn>
+                                <RadzenColumn Size="12" SizeMD="6">
+                                    <RadzenFormField Text="Programming Language" Variant="Variant.Outlined" Style="width: 100%;">
+                                        <RadzenDropDown @bind-Value="@examModel.Language" Data="@languages" TextProperty="Text" ValueProperty="Value" Style="width: 100%;" />
+                                    </RadzenFormField>
+                                </RadzenColumn>
+                            </RadzenRow>
+
+                            <RadzenRow Gap="1rem">
+                                <RadzenColumn Size="12" SizeMD="4">
+                                    <RadzenFormField Text="Duration (minutes)" Variant="Variant.Outlined" Style="width: 100%;">
+                                        <RadzenNumeric @bind-Value="@examModel.DurationMinutes" Min="10" Max="300" Style="width: 100%;" />
+                                    </RadzenFormField>
+                                </RadzenColumn>
+                                <RadzenColumn Size="12" SizeMD="4">
+                                    <RadzenFormField Text="Total Points" Variant="Variant.Outlined" Style="width: 100%;">
+                                        <RadzenNumeric @bind-Value="@examModel.TotalPoints" Min="1" Max="1000" Style="width: 100%;" />
+                                    </RadzenFormField>
+                                </RadzenColumn>
+                                <RadzenColumn Size="12" SizeMD="4">
+                                    <RadzenFormField Text="Auto-Save Interval (sec)" Variant="Variant.Outlined" Style="width: 100%;">
+                                        <RadzenNumeric @bind-Value="@examModel.AutoSaveIntervalSeconds" Min="10" Max="300" Style="width: 100%;" />
+                                    </RadzenFormField>
+                                </RadzenColumn>
+                            </RadzenRow>
+
+                            <RadzenFormField Text="Description" Variant="Variant.Outlined" Style="width: 100%;">
+                                <RadzenTextArea @bind-Value="@examModel.Description" Rows="4" Placeholder="Provide exam instructions and overview..." Style="width: 100%;" />
+                            </RadzenFormField>
+
+                            <RadzenCard Variant="Variant.Flat" Style="background: var(--rz-base-100);">
+                                <RadzenStack Gap="0.75rem">
+                                    <RadzenText TextStyle="TextStyle.Subtitle2">Options</RadzenText>
+                                    <RadzenStack Orientation="Orientation.Horizontal" Gap="2rem" Style="flex-wrap: wrap;">
+                                        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
+                                            <RadzenCheckBox @bind-Value="@examModel.AllowConsoleInput" Name="allowInput" />
+                                            <RadzenLabel Text="Allow Console Input" Component="allowInput" />
+                                        </RadzenStack>
+                                        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
+                                            <RadzenCheckBox @bind-Value="@examModel.ShowSolutionExplorer" Name="showExplorer" />
+                                            <RadzenLabel Text="Show Solution Explorer" Component="showExplorer" />
+                                        </RadzenStack>
+                                        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
+                                            <RadzenCheckBox @bind-Value="@examModel.AllowFileUpload" Name="allowUpload" />
+                                            <RadzenLabel Text="Allow File Upload" Component="allowUpload" />
+                                        </RadzenStack>
+                                    </RadzenStack>
+                                </RadzenStack>
+                            </RadzenCard>
+                        </RadzenStack>
+                    </RadzenTabsItem>
+
+                    <!-- Project Files Tab -->
+                    <RadzenTabsItem Text="Project Files">
+                        <RadzenStack Gap="1rem" Style="margin-top: 1rem;">
+                            <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween" AlignItems="AlignItems.Center">
+                                <RadzenText TextStyle="TextStyle.Subtitle1">Starter Files</RadzenText>
+                                <RadzenButton Text="Add File" Icon="add" ButtonStyle="ButtonStyle.Primary" Size="ButtonSize.Small" Click="@AddProjectFile" />
+                            </RadzenStack>
+
+                            @if (examModel.ProjectFiles.Any())
+                            {
+                                <RadzenDataList Data="@examModel.ProjectFiles" TItem="ProjectFileModel">
+                                    <Template Context="file">
+                                        <RadzenCard Style="margin-bottom: 0.5rem;">
+                                            <RadzenRow AlignItems="AlignItems.Center">
+                                                <RadzenColumn Size="3">
+                                                    <RadzenFormField Text="File Path" Variant="Variant.Flat" Style="width: 100%;">
+                                                        <RadzenTextBox @bind-Value="@file.FilePath" Placeholder="e.g., src/Main.java" Style="width: 100%;" />
+                                                    </RadzenFormField>
+                                                </RadzenColumn>
+                                                <RadzenColumn Size="2">
+                                                    <RadzenFormField Text="Type" Variant="Variant.Flat" Style="width: 100%;">
+                                                        <RadzenDropDown @bind-Value="@file.FileType" Data="@fileTypes" TextProperty="Text" ValueProperty="Value" Style="width: 100%;" />
+                                                    </RadzenFormField>
+                                                </RadzenColumn>
+                                                <RadzenColumn Size="5">
+                                                    <RadzenFormField Text="Content" Variant="Variant.Flat" Style="width: 100%;">
+                                                        <RadzenTextArea @bind-Value="@file.Content" Rows="3" Style="width: 100%; font-family: monospace; font-size: 0.85rem;" />
+                                                    </RadzenFormField>
+                                                </RadzenColumn>
+                                                <RadzenColumn Size="2">
+                                                    <RadzenStack Gap="0.5rem">
+                                                        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.25rem">
+                                                            <RadzenCheckBox @bind-Value="@file.IsReadOnly" TValue="bool" />
+                                                            <RadzenText TextStyle="TextStyle.Caption">Read-only</RadzenText>
+                                                        </RadzenStack>
+                                                        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.25rem">
+                                                            <RadzenCheckBox @bind-Value="@file.IsEntryPoint" TValue="bool" />
+                                                            <RadzenText TextStyle="TextStyle.Caption">Entry Point</RadzenText>
+                                                        </RadzenStack>
+                                                        <RadzenButton Icon="delete" ButtonStyle="ButtonStyle.Danger" Size="ButtonSize.ExtraSmall" 
+                                                                     Click="@(() => RemoveProjectFile(file))" />
+                                                    </RadzenStack>
+                                                </RadzenColumn>
+                                            </RadzenRow>
+                                        </RadzenCard>
+                                    </Template>
+                                </RadzenDataList>
+                            }
+                            else
+                            {
+                                <RadzenAlert AlertStyle="AlertStyle.Info" Variant="Variant.Flat" AllowClose="false">
+                                    No project files added yet. Click "Add File" to create starter files for the exam.
+                                </RadzenAlert>
+                            }
+                        </RadzenStack>
+                    </RadzenTabsItem>
+
+                    <!-- Tasks Tab -->
+                    <RadzenTabsItem Text="Tasks">
+                        <RadzenStack Gap="1rem" Style="margin-top: 1rem;">
+                            <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween" AlignItems="AlignItems.Center">
+                                <RadzenText TextStyle="TextStyle.Subtitle1">Programming Tasks</RadzenText>
+                                <RadzenButton Text="Add Task" Icon="add" ButtonStyle="ButtonStyle.Primary" Size="ButtonSize.Small" Click="@AddTask" />
+                            </RadzenStack>
+
+                            @foreach (var task in examModel.Tasks.OrderBy(t => t.Order))
+                            {
+                                <RadzenCard>
+                                    <RadzenStack Gap="1rem">
+                                        <RadzenRow AlignItems="AlignItems.Center">
+                                            <RadzenColumn Size="1">
+                                                <RadzenBadge BadgeStyle="BadgeStyle.Primary" IsPill="true" Text="@($"Task {task.Order}")" />
+                                            </RadzenColumn>
+                                            <RadzenColumn Size="4">
+                                                <RadzenFormField Text="Title" Variant="Variant.Flat" Style="width: 100%;">
+                                                    <RadzenTextBox @bind-Value="@task.Title" Style="width: 100%;" />
+                                                </RadzenFormField>
+                                            </RadzenColumn>
+                                            <RadzenColumn Size="2">
+                                                <RadzenFormField Text="Points" Variant="Variant.Flat" Style="width: 100%;">
+                                                    <RadzenNumeric @bind-Value="@task.Points" Min="1" Max="100" Style="width: 100%;" />
+                                                </RadzenFormField>
+                                            </RadzenColumn>
+                                            <RadzenColumn Size="3">
+                                                <RadzenFormField Text="Target Files" Variant="Variant.Flat" Style="width: 100%;">
+                                                    <RadzenTextBox @bind-Value="@task.TargetFiles" Placeholder="Main.java" Style="width: 100%;" />
+                                                </RadzenFormField>
+                                            </RadzenColumn>
+                                            <RadzenColumn Size="2">
+                                                <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" JustifyContent="JustifyContent.End">
+                                                    <RadzenButton Icon="arrow_upward" Size="ButtonSize.ExtraSmall" ButtonStyle="ButtonStyle.Light" 
+                                                                 Click="@(() => MoveTaskUp(task))" Disabled="@(task.Order == 1)" />
+                                                    <RadzenButton Icon="arrow_downward" Size="ButtonSize.ExtraSmall" ButtonStyle="ButtonStyle.Light" 
+                                                                 Click="@(() => MoveTaskDown(task))" Disabled="@(task.Order == examModel.Tasks.Count)" />
+                                                    <RadzenButton Icon="delete" Size="ButtonSize.ExtraSmall" ButtonStyle="ButtonStyle.Danger" 
+                                                                 Click="@(() => RemoveTask(task))" />
+                                                </RadzenStack>
+                                            </RadzenColumn>
+                                        </RadzenRow>
+
+                                        <RadzenFormField Text="Instructions" Variant="Variant.Flat" Style="width: 100%;">
+                                            <RadzenTextArea @bind-Value="@task.Instructions" Rows="4" Style="width: 100%;" 
+                                                           Placeholder="Describe what the student needs to accomplish for this task..." />
+                                        </RadzenFormField>
+
+                                        <RadzenRow>
+                                            <RadzenColumn Size="12" SizeMD="6">
+                                                <RadzenFormField Text="Hint (Optional)" Variant="Variant.Flat" Style="width: 100%;">
+                                                    <RadzenTextArea @bind-Value="@task.Hint" Rows="2" Style="width: 100%;" />
+                                                </RadzenFormField>
+                                            </RadzenColumn>
+                                            <RadzenColumn Size="12" SizeMD="6">
+                                                <RadzenStack Gap="0.5rem">
+                                                    <RadzenText TextStyle="TextStyle.Caption">Test Cases (Optional)</RadzenText>
+                                                    <RadzenButton Text="Add Test Case" Icon="add" Size="ButtonSize.ExtraSmall" 
+                                                                 ButtonStyle="ButtonStyle.Secondary" Click="@(() => AddTestCase(task))" />
+                                                    @foreach (var testCase in task.TestCases)
+                                                    {
+                                                        <RadzenCard Variant="Variant.Flat" Style="background: var(--rz-base-100); padding: 0.5rem;">
+                                                            <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" AlignItems="AlignItems.Center">
+                                                                <RadzenTextBox @bind-Value="@testCase.Name" Placeholder="Test name" Style="width: 100px;" />
+                                                                <RadzenTextBox @bind-Value="@testCase.Input" Placeholder="Input" Style="flex: 1;" />
+                                                                <RadzenTextBox @bind-Value="@testCase.ExpectedOutput" Placeholder="Expected Output" Style="flex: 1;" />
+                                                                <RadzenCheckBox @bind-Value="@testCase.IsHidden" TValue="bool" title="Hidden" />
+                                                                <RadzenButton Icon="close" Size="ButtonSize.ExtraSmall" ButtonStyle="ButtonStyle.Light" 
+                                                                             Click="@(() => task.TestCases.Remove(testCase))" />
+                                                            </RadzenStack>
+                                                        </RadzenCard>
+                                                    }
+                                                </RadzenStack>
+                                            </RadzenColumn>
+                                        </RadzenRow>
+                                    </RadzenStack>
+                                </RadzenCard>
+                            }
+
+                            @if (!examModel.Tasks.Any())
+                            {
+                                <RadzenAlert AlertStyle="AlertStyle.Info" Variant="Variant.Flat" AllowClose="false">
+                                    No tasks added yet. Click "Add Task" to create programming tasks for the exam.
+                                </RadzenAlert>
+                            }
+                        </RadzenStack>
+                    </RadzenTabsItem>
+                </Tabs>
+            </RadzenTabs>
+
+            <!-- Submit Button -->
+            <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.End" Gap="0.5rem" Style="margin-top: 1.5rem;">
+                <RadzenButton Text="Cancel" ButtonStyle="ButtonStyle.Light" Click="@Cancel" />
+                <RadzenButton Text="Create Exam" Icon="check" ButtonStyle="ButtonStyle.Primary" ButtonType="ButtonType.Submit" 
+                             IsBusy="@isSubmitting" BusyText="Creating..." />
+            </RadzenStack>
+        </RadzenTemplateForm>
+    </RadzenCard>
+</RadzenStack>
+
+@code {
+    private CreateProgrammingExamModel examModel = new();
+    private List<Course> courses = new();
+    private bool isSubmitting = false;
+    private bool isGenerating = false;
+    private string? currentUserId;
+
+    // AI Generator fields
+    private string aiTopic = string.Empty;
+    private int aiTaskCount = 4;
+    private string aiDifficulty = "Medium";
+    private List<string> difficulties = new() { "Easy", "Medium", "Hard" };
+
+    private List<object> languages = new()
+    {
+        new { Text = "Java", Value = ProgrammingLanguage.Java },
+        new { Text = "Python", Value = ProgrammingLanguage.Python },
+        new { Text = "C#", Value = ProgrammingLanguage.CSharp },
+        new { Text = "C++", Value = ProgrammingLanguage.CPlusPlus },
+        new { Text = "JavaScript", Value = ProgrammingLanguage.JavaScript },
+        new { Text = "TypeScript", Value = ProgrammingLanguage.TypeScript },
+        new { Text = "C", Value = ProgrammingLanguage.C }
+    };
+
+    private List<object> fileTypes = new()
+    {
+        new { Text = "Source Code", Value = ProjectFileType.Source },
+        new { Text = "Data File", Value = ProjectFileType.Data },
+        new { Text = "Configuration", Value = ProjectFileType.Config },
+        new { Text = "Resource", Value = ProjectFileType.Resource }
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = await UserManager.GetUserAsync(authState.User);
+        currentUserId = user?.Id;
+
+        courses = await ExamService.GetAllCoursesAsync();
+    }
+
+    private void AddProjectFile()
+    {
+        var order = examModel.ProjectFiles.Count + 1;
+        var defaultExtension = GetDefaultExtension(examModel.Language);
+        
+        examModel.ProjectFiles.Add(new ProjectFileModel
+        {
+            FilePath = $"src/File{order}{defaultExtension}",
+            Content = GetDefaultContent(examModel.Language, $"File{order}"),
+            FileType = ProjectFileType.Source,
+            Order = order
+        });
+    }
+
+    private void RemoveProjectFile(ProjectFileModel file)
+    {
+        examModel.ProjectFiles.Remove(file);
+        ReorderProjectFiles();
+    }
+
+    private void ReorderProjectFiles()
+    {
+        var order = 1;
+        foreach (var file in examModel.ProjectFiles)
+        {
+            file.Order = order++;
+        }
+    }
+
+    private void AddTask()
+    {
+        var order = examModel.Tasks.Count + 1;
+        examModel.Tasks.Add(new TaskModel
+        {
+            Order = order,
+            Title = $"Task {order}",
+            Points = 10
+        });
+    }
+
+    private void RemoveTask(TaskModel task)
+    {
+        examModel.Tasks.Remove(task);
+        ReorderTasks();
+    }
+
+    private void MoveTaskUp(TaskModel task)
+    {
+        var index = examModel.Tasks.IndexOf(task);
+        if (index > 0)
+        {
+            var previous = examModel.Tasks[index - 1];
+            previous.Order++;
+            task.Order--;
+        }
+    }
+
+    private void MoveTaskDown(TaskModel task)
+    {
+        var index = examModel.Tasks.IndexOf(task);
+        if (index < examModel.Tasks.Count - 1)
+        {
+            var next = examModel.Tasks[index + 1];
+            next.Order--;
+            task.Order++;
+        }
+    }
+
+    private void ReorderTasks()
+    {
+        var order = 1;
+        foreach (var task in examModel.Tasks.OrderBy(t => t.Order))
+        {
+            task.Order = order++;
+        }
+    }
+
+    private void AddTestCase(TaskModel task)
+    {
+        task.TestCases.Add(new TestCaseModel
+        {
+            Name = $"Test {task.TestCases.Count + 1}",
+            Order = task.TestCases.Count + 1
+        });
+    }
+
+    private async Task ShowAIGeneratorDialog()
+    {
+        var result = await DialogService.OpenAsync("Generate Exam with AI", ds =>
+            @<RadzenStack Gap="1rem" Style="min-width: 400px;">
+                <RadzenAlert AlertStyle="AlertStyle.Info" Variant="Variant.Flat" AllowClose="false" Size="AlertSize.Small">
+                    <RadzenIcon Icon="auto_awesome" /> AI will generate project files, tasks, and test cases based on your specifications.
+                </RadzenAlert>
+
+                <RadzenFormField Text="Topic / Description" Variant="Variant.Outlined" Style="width: 100%;">
+                    <RadzenTextArea @bind-Value="@aiTopic" Rows="3" 
+                                   Placeholder="e.g., Create a program to manage a football match database with reading from CSV files, sorting, and statistics calculation" 
+                                   Style="width: 100%;" />
+                </RadzenFormField>
+
+                <RadzenRow Gap="1rem">
+                    <RadzenColumn Size="6">
+                        <RadzenFormField Text="Number of Tasks" Variant="Variant.Outlined" Style="width: 100%;">
+                            <RadzenNumeric @bind-Value="@aiTaskCount" Min="1" Max="10" Style="width: 100%;" />
+                        </RadzenFormField>
+                    </RadzenColumn>
+                    <RadzenColumn Size="6">
+                        <RadzenFormField Text="Difficulty" Variant="Variant.Outlined" Style="width: 100%;">
+                            <RadzenDropDown @bind-Value="@aiDifficulty" Data="@difficulties" Style="width: 100%;" />
+                        </RadzenFormField>
+                    </RadzenColumn>
+                </RadzenRow>
+
+                <RadzenText TextStyle="TextStyle.Caption" class="text-muted">
+                    Note: Make sure you have selected the programming language in the Basic Information tab before generating.
+                </RadzenText>
+
+                <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.End" Gap="0.5rem">
+                    <RadzenButton Text="Cancel" ButtonStyle="ButtonStyle.Light" Click="@(() => ds.Close(false))" />
+                    <RadzenButton Text="Generate" Icon="auto_awesome" ButtonStyle="ButtonStyle.Primary" 
+                                 Click="@(() => ds.Close(true))" Disabled="@string.IsNullOrWhiteSpace(aiTopic)" />
+                </RadzenStack>
+            </RadzenStack>,
+            new DialogOptions { Width = "500px", CloseDialogOnOverlayClick = false });
+
+        if (result == true)
+        {
+            await GenerateWithAI();
+        }
+    }
+
+    private async Task GenerateWithAI()
+    {
+        if (string.IsNullOrWhiteSpace(aiTopic)) return;
+
+        isGenerating = true;
+        StateHasChanged();
+
+        try
+        {
+            var generated = await OpenAIService.GenerateProgrammingTasksAsync(
+                aiTopic,
+                examModel.Language,
+                aiTaskCount,
+                aiDifficulty);
+
+            // Apply generated content to the model
+            if (!string.IsNullOrWhiteSpace(generated.ProjectName))
+            {
+                examModel.ProjectName = generated.ProjectName;
+            }
+
+            if (!string.IsNullOrWhiteSpace(generated.Description))
+            {
+                examModel.Description = generated.Description;
+            }
+
+            // Add starter files
+            examModel.ProjectFiles.Clear();
+            var fileOrder = 1;
+            foreach (var file in generated.StarterFiles)
+            {
+                examModel.ProjectFiles.Add(new ProjectFileModel
+                {
+                    FilePath = file.FilePath,
+                    Content = file.Content,
+                    IsEntryPoint = file.IsEntryPoint,
+                    IsReadOnly = file.IsReadOnly,
+                    FileType = ProjectFileType.Source,
+                    Order = fileOrder++
+                });
+            }
+
+            // Add tasks
+            examModel.Tasks.Clear();
+            decimal totalPoints = 0;
+            foreach (var task in generated.Tasks)
+            {
+                var taskModel = new TaskModel
+                {
+                    Order = task.Order,
+                    Title = task.Title,
+                    Instructions = task.Instructions,
+                    Points = task.Points,
+                    Hint = task.Hint,
+                    TargetFiles = task.TargetFiles,
+                    TestCases = new List<TestCaseModel>()
+                };
+
+                var testOrder = 1;
+                foreach (var testCase in task.TestCases)
+                {
+                    taskModel.TestCases.Add(new TestCaseModel
+                    {
+                        Name = testCase.Name,
+                        Input = testCase.Input,
+                        ExpectedOutput = testCase.ExpectedOutput,
+                        IsHidden = testCase.IsHidden,
+                        Points = 1,
+                        TimeoutSeconds = 10,
+                        Order = testOrder++
+                    });
+                }
+
+                examModel.Tasks.Add(taskModel);
+                totalPoints += task.Points;
+            }
+
+            // Update total points
+            examModel.TotalPoints = totalPoints;
+
+            NotificationService.Notify(NotificationSeverity.Success, "AI Generation Complete", 
+                $"Generated {generated.StarterFiles.Count} files and {generated.Tasks.Count} tasks");
+        }
+        catch (Exception ex)
+        {
+            NotificationService.Notify(NotificationSeverity.Error, "AI Generation Failed", ex.Message);
+        }
+        finally
+        {
+            isGenerating = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task HandleSubmit()
+    {
+        if (string.IsNullOrWhiteSpace(currentUserId)) return;
+
+        isSubmitting = true;
+
+        try
+        {
+            var exam = new ProgrammingExam
+            {
+                Title = examModel.Title,
+                Description = examModel.Description,
+                CourseId = examModel.CourseId,
+                CreatedByUserId = currentUserId,
+                DurationMinutes = examModel.DurationMinutes,
+                Language = examModel.Language,
+                ProjectName = examModel.ProjectName ?? examModel.Title.Replace(" ", ""),
+                TotalPoints = examModel.TotalPoints,
+                AllowConsoleInput = examModel.AllowConsoleInput,
+                AllowFileUpload = examModel.AllowFileUpload,
+                ShowSolutionExplorer = examModel.ShowSolutionExplorer,
+                AutoSaveIntervalSeconds = examModel.AutoSaveIntervalSeconds
+            };
+
+            var createdExam = await ProgrammingExamService.CreateProgrammingExamAsync(exam);
+
+            // Add project files
+            foreach (var file in examModel.ProjectFiles)
+            {
+                await ProgrammingExamService.CreateProjectFileAsync(new ProjectFile
+                {
+                    ProgrammingExamId = createdExam.Id,
+                    FilePath = file.FilePath,
+                    FileName = Path.GetFileName(file.FilePath),
+                    Content = file.Content,
+                    IsReadOnly = file.IsReadOnly,
+                    IsEntryPoint = file.IsEntryPoint,
+                    FileType = file.FileType,
+                    Order = file.Order
+                });
+            }
+
+            // Add tasks
+            foreach (var task in examModel.Tasks)
+            {
+                var createdTask = await ProgrammingExamService.CreateTaskAsync(new ProgrammingTask
+                {
+                    ProgrammingExamId = createdExam.Id,
+                    Title = task.Title,
+                    Instructions = task.Instructions,
+                    Points = task.Points,
+                    Order = task.Order,
+                    Hint = task.Hint,
+                    TargetFiles = task.TargetFiles
+                });
+
+                // Add test cases
+                foreach (var testCase in task.TestCases)
+                {
+                    await ProgrammingExamService.CreateTestCaseAsync(new TestCase
+                    {
+                        ProgrammingTaskId = createdTask.Id,
+                        Name = testCase.Name,
+                        Input = testCase.Input,
+                        ExpectedOutput = testCase.ExpectedOutput,
+                        IsHidden = testCase.IsHidden,
+                        Points = testCase.Points,
+                        TimeoutSeconds = testCase.TimeoutSeconds,
+                        Order = testCase.Order
+                    });
+                }
+            }
+
+            NotificationService.Notify(NotificationSeverity.Success, "Success", "Programming exam created successfully!");
+            Navigation.NavigateTo("/teacher/exams");
+        }
+        catch (Exception ex)
+        {
+            NotificationService.Notify(NotificationSeverity.Error, "Error", ex.Message);
+        }
+        finally
+        {
+            isSubmitting = false;
+        }
+    }
+
+    private void Cancel()
+    {
+        Navigation.NavigateTo("/teacher/exams");
+    }
+
+    private string GetDefaultExtension(ProgrammingLanguage language)
+    {
+        return language switch
+        {
+            ProgrammingLanguage.Java => ".java",
+            ProgrammingLanguage.Python => ".py",
+            ProgrammingLanguage.CSharp => ".cs",
+            ProgrammingLanguage.CPlusPlus => ".cpp",
+            ProgrammingLanguage.JavaScript => ".js",
+            ProgrammingLanguage.TypeScript => ".ts",
+            ProgrammingLanguage.C => ".c",
+            _ => ".txt"
+        };
+    }
+
+    private string GetDefaultContent(ProgrammingLanguage language, string className)
+    {
+        return language switch
+        {
+            ProgrammingLanguage.Java => $"public class {className} {{\n    public static void main(String[] args) {{\n        // Your code here\n    }}\n}}\n",
+            ProgrammingLanguage.Python => "# Your code here\n\ndef main():\n    pass\n\nif __name__ == \"__main__\":\n    main()\n",
+            ProgrammingLanguage.CSharp => $"using System;\n\nnamespace Project\n{{\n    public class {className}\n    {{\n        public static void Main(string[] args)\n        {{\n            // Your code here\n        }}\n    }}\n}}\n",
+            ProgrammingLanguage.CPlusPlus => "#include <iostream>\nusing namespace std;\n\nint main() {\n    // Your code here\n    return 0;\n}\n",
+            ProgrammingLanguage.JavaScript => "// Your code here\n\nfunction main() {\n    \n}\n\nmain();\n",
+            ProgrammingLanguage.TypeScript => "// Your code here\n\nfunction main(): void {\n    \n}\n\nmain();\n",
+            ProgrammingLanguage.C => "#include <stdio.h>\n\nint main() {\n    // Your code here\n    return 0;\n}\n",
+            _ => ""
+        };
+    }
+
+    public class CreateProgrammingExamModel
+    {
+        public string Title { get; set; } = string.Empty;
+        public string? Description { get; set; }
+        public int CourseId { get; set; }
+        public int DurationMinutes { get; set; } = 120;
+        public ProgrammingLanguage Language { get; set; } = ProgrammingLanguage.Java;
+        public string? ProjectName { get; set; }
+        public decimal TotalPoints { get; set; } = 100;
+        public bool AllowConsoleInput { get; set; } = true;
+        public bool AllowFileUpload { get; set; } = false;
+        public bool ShowSolutionExplorer { get; set; } = true;
+        public int AutoSaveIntervalSeconds { get; set; } = 30;
+        public List<ProjectFileModel> ProjectFiles { get; set; } = new();
+        public List<TaskModel> Tasks { get; set; } = new();
+    }
+
+    public class ProjectFileModel
+    {
+        public string FilePath { get; set; } = string.Empty;
+        public string Content { get; set; } = string.Empty;
+        public bool IsReadOnly { get; set; }
+        public bool IsEntryPoint { get; set; }
+        public ProjectFileType FileType { get; set; } = ProjectFileType.Source;
+        public int Order { get; set; }
+    }
+
+    public class TaskModel
+    {
+        public int Order { get; set; }
+        public string Title { get; set; } = string.Empty;
+        public string Instructions { get; set; } = string.Empty;
+        public decimal Points { get; set; } = 10;
+        public string? Hint { get; set; }
+        public string? TargetFiles { get; set; }
+        public List<TestCaseModel> TestCases { get; set; } = new();
+    }
+
+    public class TestCaseModel
+    {
+        public string Name { get; set; } = string.Empty;
+        public string? Input { get; set; }
+        public string? ExpectedOutput { get; set; }
+        public bool IsHidden { get; set; }
+        public decimal Points { get; set; } = 1;
+        public int TimeoutSeconds { get; set; } = 10;
+        public int Order { get; set; }
+    }
+}

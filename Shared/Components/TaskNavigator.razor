@@ -1,0 +1,204 @@
+@using PeP.Models
+
+<div class="task-navigator" style="display: flex; flex-direction: column; gap: 1rem;">
+    <!-- Task Tabs -->
+    <div class="task-tabs" style="display: flex; flex-wrap: wrap; gap: 0.5rem; justify-content: center;">
+        @foreach (var task in Tasks)
+        {
+            var index = Tasks.IndexOf(task) + 1;
+            var progress = TaskProgressList?.FirstOrDefault(tp => tp.ProgrammingTaskId == task.Id);
+            var isSelected = SelectedTask?.Id == task.Id;
+
+            <div class="task-tab @(isSelected ? "selected" : "")" 
+                 style="@GetTaskTabStyle(isSelected, progress)"
+                 @onclick="() => SelectTask(task)">
+                <div class="task-tab-header" style="padding: 0.5rem 1rem; text-align: center; cursor: pointer; min-width: 80px;">
+                    <RadzenText TextStyle="TextStyle.Body2" Style="margin: 0; font-weight: 600;">
+                        Task @index
+                    </RadzenText>
+                </div>
+                <div class="task-tab-indicators" style="display: flex; justify-content: center; gap: 0.25rem; padding-bottom: 0.5rem;">
+                    @for (int i = 0; i < GetIndicatorCount(task); i++)
+                    {
+                        var indicatorStyle = GetIndicatorStyle(progress, i);
+                        <div style="width: 12px; height: 12px; border-radius: 2px; @indicatorStyle"></div>
+                    }
+                </div>
+            </div>
+        }
+    </div>
+
+    <!-- Task Instructions -->
+    @if (SelectedTask != null)
+    {
+        <RadzenCard Style="background: var(--rz-base-100);">
+            <RadzenStack Gap="1rem">
+                <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween" AlignItems="AlignItems.Start">
+                    <RadzenStack Gap="0.25rem">
+                        <RadzenText TextStyle="TextStyle.H6" Style="margin: 0;">@SelectedTask.Title</RadzenText>
+                        <RadzenBadge BadgeStyle="BadgeStyle.Info" IsPill="true" Text="@($"{SelectedTask.Points} points")" />
+                    </RadzenStack>
+                    @if (!string.IsNullOrEmpty(SelectedTask.Hint))
+                    {
+                        <RadzenButton Icon="lightbulb" Text="Hint" ButtonStyle="ButtonStyle.Light" 
+                                     Size="ButtonSize.Small" Click="@ShowHint" />
+                    }
+                </RadzenStack>
+
+                <div class="task-instructions" style="line-height: 1.6;">
+                    @((MarkupString)FormatInstructions(SelectedTask.Instructions))
+                </div>
+
+                @if (!string.IsNullOrEmpty(SelectedTask.TargetFiles))
+                {
+                    <RadzenAlert AlertStyle="AlertStyle.Info" Variant="Variant.Flat" AllowClose="false" Size="AlertSize.Small">
+                        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
+                            <RadzenIcon Icon="folder_open" />
+                            <span>Target files: <strong>@SelectedTask.TargetFiles</strong></span>
+                        </RadzenStack>
+                    </RadzenAlert>
+                }
+            </RadzenStack>
+        </RadzenCard>
+    }
+
+    <!-- Action Buttons -->
+    <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween" Gap="0.5rem" Style="flex-wrap: wrap;">
+        <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem">
+            @if (ShowOverviewButton)
+            {
+                <RadzenButton Text="Check the overview" Icon="visibility" ButtonStyle="ButtonStyle.Secondary" 
+                             Size="ButtonSize.Small" Click="@OnOverviewClick" />
+            }
+            @if (HasDataFile)
+            {
+                <RadzenButton Text="View the CSV file" Icon="table_chart" ButtonStyle="ButtonStyle.Secondary" 
+                             Size="ButtonSize.Small" Click="@OnViewDataClick" />
+            }
+        </RadzenStack>
+
+        <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem">
+            <RadzenButton Text="Mark as completed" Icon="check_circle" ButtonStyle="ButtonStyle.Success" 
+                         Size="ButtonSize.Small" Click="@OnMarkCompleted" />
+            <RadzenButton Text="Mark for review" Icon="flag" ButtonStyle="ButtonStyle.Warning" 
+                         Size="ButtonSize.Small" Click="@OnMarkForReview" />
+            <RadzenButton Text="Mark for feedback" Icon="feedback" ButtonStyle="ButtonStyle.Info" 
+                         Size="ButtonSize.Small" Click="@OnMarkForFeedback" />
+        </RadzenStack>
+    </RadzenStack>
+</div>
+
+@code {
+    [Parameter] public List<ProgrammingTask> Tasks { get; set; } = new();
+    [Parameter] public List<TaskProgress>? TaskProgressList { get; set; }
+    [Parameter] public ProgrammingTask? SelectedTask { get; set; }
+    [Parameter] public EventCallback<ProgrammingTask> SelectedTaskChanged { get; set; }
+    [Parameter] public EventCallback<ProgrammingTask> OnTaskSelected { get; set; }
+    [Parameter] public EventCallback OnOverview { get; set; }
+    [Parameter] public EventCallback OnViewData { get; set; }
+    [Parameter] public EventCallback<ProgrammingTaskStatus> OnMarkStatus { get; set; }
+    [Parameter] public bool ShowOverviewButton { get; set; } = true;
+    [Parameter] public bool HasDataFile { get; set; } = false;
+
+    [Inject] private DialogService DialogService { get; set; } = default!;
+
+    private async Task SelectTask(ProgrammingTask task)
+    {
+        SelectedTask = task;
+        await SelectedTaskChanged.InvokeAsync(task);
+        await OnTaskSelected.InvokeAsync(task);
+    }
+
+    private async Task ShowHint()
+    {
+        if (SelectedTask != null && !string.IsNullOrEmpty(SelectedTask.Hint))
+        {
+            await DialogService.Alert(SelectedTask.Hint, "💡 Hint", new AlertOptions
+            {
+                OkButtonText = "Got it!"
+            });
+        }
+    }
+
+    private async Task OnOverviewClick() => await OnOverview.InvokeAsync();
+    private async Task OnViewDataClick() => await OnViewData.InvokeAsync();
+    private async Task OnMarkCompleted() => await OnMarkStatus.InvokeAsync(ProgrammingTaskStatus.Completed);
+    private async Task OnMarkForReview() => await OnMarkStatus.InvokeAsync(ProgrammingTaskStatus.MarkedForReview);
+    private async Task OnMarkForFeedback() => await OnMarkStatus.InvokeAsync(ProgrammingTaskStatus.NeedsFeedback);
+
+    private string GetTaskTabStyle(bool isSelected, TaskProgress? progress)
+    {
+        var borderColor = isSelected ? "var(--rz-primary)" : "var(--rz-base-400)";
+        var bgColor = isSelected ? "var(--rz-primary-lighter)" : "var(--rz-base-100)";
+        
+        if (progress != null)
+        {
+            bgColor = progress.Status switch
+            {
+                ProgrammingTaskStatus.Completed => isSelected ? "#c8e6c9" : "#e8f5e9",
+                ProgrammingTaskStatus.MarkedForReview => isSelected ? "#fff3e0" : "#fff8e1",
+                ProgrammingTaskStatus.NeedsFeedback => isSelected ? "#e3f2fd" : "#e8f4fc",
+                _ => bgColor
+            };
+        }
+
+        return $"border: 2px solid {borderColor}; border-radius: 8px; background: {bgColor}; transition: all 0.2s;";
+    }
+
+    private int GetIndicatorCount(ProgrammingTask task)
+    {
+        // Show indicators based on test cases or a default of 4
+        return task.TestCases?.Count > 0 ? Math.Min(task.TestCases.Count, 8) : 4;
+    }
+
+    private string GetIndicatorStyle(TaskProgress? progress, int index)
+    {
+        if (progress == null)
+        {
+            return "background: var(--rz-base-300); border: 1px solid var(--rz-base-400);";
+        }
+
+        // Check test case results
+        var testResults = progress.TestCaseResults?.OrderBy(r => r.TestCase?.Order ?? 0).ToList();
+        if (testResults != null && index < testResults.Count)
+        {
+            var result = testResults[index];
+            if (result.Passed)
+            {
+                return "background: #4caf50; border: 1px solid #388e3c;";
+            }
+            else
+            {
+                return "background: #f44336; border: 1px solid #d32f2f;";
+            }
+        }
+
+        // Based on task status
+        return progress.Status switch
+        {
+            ProgrammingTaskStatus.Completed => "background: #4caf50; border: 1px solid #388e3c;",
+            ProgrammingTaskStatus.InProgress => "background: #ff9800; border: 1px solid #f57c00;",
+            _ => "background: var(--rz-base-300); border: 1px solid var(--rz-base-400);"
+        };
+    }
+
+    private string FormatInstructions(string instructions)
+    {
+        if (string.IsNullOrEmpty(instructions)) return "";
+
+        // Simple markdown-like formatting
+        var formatted = instructions
+            .Replace("\n", "<br/>")
+            .Replace("**", "<strong>").Replace("**", "</strong>")
+            .Replace("`", "<code>").Replace("`", "</code>")
+            .Replace("_", "<em>").Replace("_", "</em>");
+
+        // Highlight class names and method names (words starting with uppercase or containing parentheses)
+        formatted = System.Text.RegularExpressions.Regex.Replace(
+            formatted,
+            @"\b([A-Z][a-zA-Z0-9]*(?:\.[A-Z][a-zA-Z0-9]*)*)\b",
+            "<code style='background: var(--rz-base-200); padding: 0.1rem 0.3rem; border-radius: 3px;'>$1</code>");
+
+        return formatted;
+    }
+}

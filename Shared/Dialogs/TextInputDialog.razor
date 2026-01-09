@@ -1,0 +1,58 @@
+@inject DialogService DialogService
+
+<RadzenStack Gap="1rem">
+    <RadzenFormField Text="@Label" Variant="Variant.Outlined">
+        <RadzenTextBox @bind-Value="@inputValue" Placeholder="@Placeholder" Style="width: 100%;" @onkeydown="HandleKeyDown" />
+    </RadzenFormField>
+
+    @if (!string.IsNullOrEmpty(HelpText))
+    {
+        <RadzenText TextStyle="TextStyle.Caption" class="text-muted">
+            @HelpText
+        </RadzenText>
+    }
+
+    <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.End" Gap="0.5rem">
+        <RadzenButton Text="Cancel" ButtonStyle="ButtonStyle.Light" Click="@Cancel" />
+        <RadzenButton Text="OK" ButtonStyle="ButtonStyle.Primary" Click="@Submit" Disabled="@(string.IsNullOrWhiteSpace(inputValue))" />
+    </RadzenStack>
+</RadzenStack>
+
+@code {
+    [Parameter] public string Label { get; set; } = "Value";
+    [Parameter] public string Placeholder { get; set; } = "";
+    [Parameter] public string HelpText { get; set; } = "";
+    [Parameter] public string InitialValue { get; set; } = "";
+
+    private string inputValue = string.Empty;
+
+    protected override void OnInitialized()
+    {
+        inputValue = InitialValue;
+    }
+
+    private void HandleKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && !string.IsNullOrWhiteSpace(inputValue))
+        {
+            Submit();
+        }
+        else if (e.Key == "Escape")
+        {
+            Cancel();
+        }
+    }
+
+    private void Cancel()
+    {
+        DialogService.Close(null);
+    }
+
+    private void Submit()
+    {
+        if (!string.IsNullOrWhiteSpace(inputValue))
+        {
+            DialogService.Close(inputValue.Trim());
+        }
+    }
+}

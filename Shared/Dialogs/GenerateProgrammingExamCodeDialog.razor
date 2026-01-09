@@ -1,0 +1,180 @@
+@using Microsoft.AspNetCore.Components.Authorization
+@inject IProgrammingExamService ProgrammingExamService
+@inject UserManager<ApplicationUser> UserManager
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject NotificationService NotificationService
+@inject IJSRuntime JSRuntime
+
+<RadzenStack Gap="1rem" Style="min-width:450px;">
+    <!-- Header -->
+    <RadzenStack Gap="0.25rem" Style="border-bottom:1px solid var(--rz-base-300);padding-bottom:0.75rem;">
+        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
+            <RadzenIcon Icon="code" Style="font-size:1.5rem;color:var(--rz-primary);" />
+            <RadzenText TextStyle="TextStyle.H6" TagName="TagName.H2" Style="margin:0;">Generate Exam Code</RadzenText>
+        </RadzenStack>
+        <RadzenText TextStyle="TextStyle.Caption" class="text-muted">Create a shareable code for the programming exam.</RadzenText>
+    </RadzenStack>
+
+    <!-- Exam Info Card -->
+    <RadzenCard Style="background:linear-gradient(135deg, var(--rz-primary-lighter) 0%, var(--rz-base-100) 100%);padding:1rem;">
+        <RadzenStack Gap="0.5rem">
+            <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
+                <RadzenIcon Icon="assignment" Style="color:var(--rz-primary);font-size:1.1rem;" />
+                <RadzenText TextStyle="TextStyle.Subtitle1" Style="margin:0;font-weight:500;">@ProgrammingExam.Title</RadzenText>
+            </RadzenStack>
+            <RadzenStack Orientation="Orientation.Horizontal" Gap="0.75rem">
+                <RadzenBadge Text="@ProgrammingExam.Language.ToString()" BadgeStyle="BadgeStyle.Info" />
+                <RadzenBadge Text="@($"{ProgrammingExam.DurationMinutes} min")" BadgeStyle="BadgeStyle.Light" />
+                <RadzenBadge Text="@($"{ProgrammingExam.Tasks?.Count ?? 0} tasks")" BadgeStyle="BadgeStyle.Secondary" />
+            </RadzenStack>
+        </RadzenStack>
+    </RadzenCard>
+
+    <RadzenTemplateForm TItem="ExamCodeModel" Data="@model" Submit="@OnSubmit">
+        <RadzenStack Gap="1rem">
+            <!-- Settings Card -->
+            <RadzenCard Style="background:var(--rz-base-100);padding:1rem;">
+                <RadzenStack Gap="0.75rem">
+                    <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
+                        <RadzenIcon Icon="settings" Style="color:var(--rz-info);font-size:1.1rem;" />
+                        <RadzenText TextStyle="TextStyle.Subtitle1" Style="margin:0;font-weight:500;">Code Settings</RadzenText>
+                    </RadzenStack>
+
+                    <RadzenFormField Text="Description (Optional)" Variant="Variant.Outlined" Style="width:100%;">
+                        <RadzenTextBox @bind-Value="@model.Description" MaxLength="500" Placeholder="e.g. Lab Section A" Style="width:100%;" />
+                    </RadzenFormField>
+
+                    <RadzenRow Style="row-gap:0.75rem;">
+                        <RadzenColumn Size="12" SizeMD="6">
+                            <RadzenFormField Text="Expires At" Variant="Variant.Outlined" Style="width:100%;">
+                                <RadzenDatePicker @bind-Value="@model.ExpiresAt" DateFormat="MM/dd/yyyy HH:mm" ShowTime="true" Name="ExpiresAt" Style="width:100%;" />
+                                <RadzenRequiredValidator Component="ExpiresAt" Text="Expiration is required" />
+                            </RadzenFormField>
+                        </RadzenColumn>
+                        <RadzenColumn Size="12" SizeMD="6">
+                            <RadzenFormField Text="Maximum Uses" Variant="Variant.Outlined" Style="width:100%;">
+                                <ChildContent>
+                                    <RadzenNumeric @bind-Value="@model.MaxUses" Min="1" Max="1000" Placeholder="Unlimited" Style="width:100%;" />
+                                </ChildContent>
+                                <Helper>
+                                    <RadzenText TextStyle="TextStyle.Caption" class="text-muted">Leave empty for unlimited</RadzenText>
+                                </Helper>
+                            </RadzenFormField>
+                        </RadzenColumn>
+                    </RadzenRow>
+                </RadzenStack>
+            </RadzenCard>
+
+            <!-- Generated Code Display -->
+            @if (!string.IsNullOrEmpty(generatedCode))
+            {
+                <RadzenCard Style="background:var(--rz-success-lighter);padding:1rem;">
+                    <RadzenStack Gap="0.75rem" AlignItems="AlignItems.Center">
+                        <RadzenIcon Icon="check_circle" Style="color:var(--rz-success);font-size:2rem;" />
+                        <RadzenText TextStyle="TextStyle.Subtitle2">Your Exam Code</RadzenText>
+                        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
+                            <RadzenText TextStyle="TextStyle.H4" Style="font-family:monospace;font-weight:bold;letter-spacing:2px;margin:0;">
+                                @generatedCode
+                            </RadzenText>
+                            <RadzenButton Icon="content_copy" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small" 
+                                        Click="@CopyCode" title="Copy to clipboard" />
+                        </RadzenStack>
+                        <RadzenText TextStyle="TextStyle.Caption" class="text-muted">Share this code with your students</RadzenText>
+                    </RadzenStack>
+                </RadzenCard>
+            }
+
+            <!-- Action Buttons -->
+            <RadzenStack Orientation="Orientation.Horizontal" Gap="0.75rem" JustifyContent="JustifyContent.End" Style="padding-top:0.5rem;border-top:1px solid var(--rz-base-300);">
+                @if (string.IsNullOrEmpty(generatedCode))
+                {
+                    <RadzenButton Text="Cancel" Icon="close" ButtonStyle="ButtonStyle.Light" Click="@(() => dialogService.Close(null))" />
+                    <RadzenButton Text="Generate Code" Icon="vpn_key" ButtonStyle="ButtonStyle.Primary" ButtonType="ButtonType.Submit" IsBusy="@isSubmitting" Disabled="@isSubmitting" />
+                }
+                else
+                {
+                    <RadzenButton Text="Done" Icon="check" ButtonStyle="ButtonStyle.Success" Click="@(() => dialogService.Close(generatedCode))" />
+                }
+            </RadzenStack>
+        </RadzenStack>
+    </RadzenTemplateForm>
+</RadzenStack>
+
+@code {
+    [Parameter] public ProgrammingExam ProgrammingExam { get; set; } = default!;
+    [Inject] public DialogService dialogService { get; set; } = default!;
+
+    private ExamCodeModel model = new() { ExpiresAt = DateTime.Now.AddDays(7) };
+    private bool isSubmitting;
+    private string? generatedCode;
+    private string? currentUserId;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        currentUserId = UserManager.GetUserId(authState.User);
+    }
+
+    private async Task OnSubmit()
+    {
+        if (string.IsNullOrEmpty(currentUserId)) return;
+
+        isSubmitting = true;
+        try
+        {
+            var examCode = new ProgrammingExamCode
+            {
+                ProgrammingExamId = ProgrammingExam.Id,
+                Code = GenerateUniqueCode(),
+                Description = model.Description,
+                ExpiresAt = model.ExpiresAt.ToUniversalTime(),
+                MaxUses = model.MaxUses,
+                IsActive = true,
+                CreatedByUserId = currentUserId
+            };
+
+            await ProgrammingExamService.CreateProgrammingExamCodeAsync(examCode);
+            generatedCode = examCode.Code;
+            
+            NotificationService.Notify(NotificationSeverity.Success, "Success", "Exam code generated successfully!");
+        }
+        catch (Exception ex)
+        {
+            NotificationService.Notify(NotificationSeverity.Error, "Error", ex.Message);
+        }
+        finally
+        {
+            isSubmitting = false;
+        }
+    }
+
+    private string GenerateUniqueCode()
+    {
+        const string chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+        var random = new Random();
+        return new string(Enumerable.Repeat(chars, 6).Select(s => s[random.Next(s.Length)]).ToArray());
+    }
+
+    private async Task CopyCode()
+    {
+        if (!string.IsNullOrEmpty(generatedCode))
+        {
+            try
+            {
+                await JSRuntime.InvokeVoidAsync("navigator.clipboard.writeText", generatedCode);
+                NotificationService.Notify(NotificationSeverity.Success, "Copied", "Code copied to clipboard!");
+            }
+            catch
+            {
+                NotificationService.Notify(NotificationSeverity.Warning, "Copy Failed", "Please copy the code manually");
+            }
+        }
+    }
+
+    private class ExamCodeModel
+    {
+        public string? Description { get; set; }
+        public DateTime ExpiresAt { get; set; }
+        public int? MaxUses { get; set; }
+    }
+}

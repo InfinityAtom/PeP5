@@ -61,6 +61,7 @@ public partial class ExamRunnerPage : Page
             state.AttemptId = start.AttemptId;
             state.LaunchToken = start.LaunchToken;
             state.LaunchExpiresAtUtc = start.ExpiresAtUtc;
+            state.IsProgrammingExam = start.IsProgrammingExam;
 
             if (!_examModeEntered)
             {
@@ -82,7 +83,8 @@ public partial class ExamRunnerPage : Page
             ExamWebView.CoreWebView2.NavigationCompleted += OnNavigationCompleted;
 
             var token = Uri.EscapeDataString(start.LaunchToken);
-            var url = new Uri(state.ServerBaseUri, $"/student/take-exam?attemptId={start.AttemptId}&launchToken={token}");
+            var examPath = start.IsProgrammingExam ? "take-programming-exam" : "take-exam";
+            var url = new Uri(state.ServerBaseUri, $"/student/{examPath}?attemptId={start.AttemptId}&launchToken={token}");
             ExamWebView.CoreWebView2.Navigate(url.ToString());
 
             SetupWatermark(state);

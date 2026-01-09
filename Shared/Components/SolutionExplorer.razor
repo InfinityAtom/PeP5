@@ -1,0 +1,486 @@
+@using PeP.Models
+@inject DialogService DialogService
+
+<div class="solution-explorer" style="height: 100%; display: flex; flex-direction: column; background: var(--rz-base-100);">
+    <div class="explorer-header" style="padding: 0.75rem 1rem; background: var(--rz-base-200); border-bottom: 1px solid var(--rz-base-400);">
+        <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween" AlignItems="AlignItems.Center">
+            <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
+                <RadzenIcon Icon="folder_open" Style="color: var(--rz-warning);" />
+                <RadzenText TextStyle="TextStyle.Subtitle2" Style="margin: 0;">@ProjectName</RadzenText>
+            </RadzenStack>
+            @if (!IsReadOnly)
+            {
+                <RadzenStack Orientation="Orientation.Horizontal" Gap="0.25rem">
+                    <RadzenButton Icon="note_add" Size="ButtonSize.ExtraSmall" ButtonStyle="ButtonStyle.Light" 
+                                 Click="@HandleNewFile" title="New File" />
+                    <RadzenButton Icon="create_new_folder" Size="ButtonSize.ExtraSmall" ButtonStyle="ButtonStyle.Light" 
+                                 Click="@HandleNewFolder" title="New Folder" />
+                </RadzenStack>
+            }
+        </RadzenStack>
+    </div>
+
+    <div class="explorer-tree" style="flex: 1; overflow: auto; padding: 0.5rem;" @oncontextmenu:preventDefault="true">
+        @if (FileTree != null && FileTree.Any())
+        {
+            @RenderTree(FileTree, 0)
+        }
+        else
+        {
+            <RadzenText TextStyle="TextStyle.Caption" class="text-muted" Style="padding: 1rem;">
+                No files in project
+            </RadzenText>
+        }
+    </div>
+
+    @if (SelectedFile != null)
+    {
+        <div class="explorer-footer" style="padding: 0.5rem 1rem; background: var(--rz-base-200); border-top: 1px solid var(--rz-base-400);">
+            <RadzenText TextStyle="TextStyle.Caption" class="text-muted" Style="margin: 0;">
+                @SelectedFile.FilePath
+            </RadzenText>
+        </div>
+    }
+</div>
+
+<!-- Context Menu -->
+@if (showContextMenu)
+{
+    <div class="context-menu-overlay" style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 999;" @onclick="CloseContextMenu"></div>
+    <div class="context-menu" style="position: fixed; left: @(contextMenuX)px; top: @(contextMenuY)px; z-index: 1000; background: var(--rz-base-100); border: 1px solid var(--rz-base-400); border-radius: 4px; box-shadow: 0 2px 8px rgba(0,0,0,0.15); min-width: 150px;">
+        @if (contextMenuNode != null)
+        {
+            @if (contextMenuNode.IsFolder)
+            {
+                <div class="context-menu-item" style="padding: 8px 12px; cursor: pointer; display: flex; align-items: center; gap: 8px;" @onclick="() => NewFileInFolder(contextMenuNode)">
+                    <RadzenIcon Icon="note_add" Style="font-size: 1rem;" /> New File
+                </div>
+                <div class="context-menu-item" style="padding: 8px 12px; cursor: pointer; display: flex; align-items: center; gap: 8px;" @onclick="() => NewFolderInFolder(contextMenuNode)">
+                    <RadzenIcon Icon="create_new_folder" Style="font-size: 1rem;" /> New Folder
+                </div>
+            }
+            else if (!contextMenuNode.IsReadOnly)
+            {
+                <div class="context-menu-item" style="padding: 8px 12px; cursor: pointer; display: flex; align-items: center; gap: 8px;" @onclick="() => DeleteFile(contextMenuNode)">
+                    <RadzenIcon Icon="delete" Style="font-size: 1rem; color: var(--rz-danger);" /> Delete
+                </div>
+                <div class="context-menu-item" style="padding: 8px 12px; cursor: pointer; display: flex; align-items: center; gap: 8px;" @onclick="() => RenameFile(contextMenuNode)">
+                    <RadzenIcon Icon="edit" Style="font-size: 1rem;" /> Rename
+                </div>
+            }
+        }
+    </div>
+}
+
+<style>
+    .context-menu-item:hover {
+        background: var(--rz-base-200);
+    }
+    .tree-node-content:hover {
+        background: var(--rz-base-200);
+    }
+</style>
+
+@code {
+    [Parameter] public string ProjectName { get; set; } = "Project";
+    [Parameter] public List<StudentProjectFile> Files { get; set; } = new();
+    [Parameter] public List<ProjectFile>? StarterFiles { get; set; }
+    [Parameter] public StudentProjectFile? SelectedFile { get; set; }
+    [Parameter] public EventCallback<StudentProjectFile> SelectedFileChanged { get; set; }
+    [Parameter] public EventCallback<StudentProjectFile> OnFileSelected { get; set; }
+    [Parameter] public EventCallback<StudentProjectFile> OnFileDoubleClick { get; set; }
+    [Parameter] public EventCallback<string> OnNewFile { get; set; }
+    [Parameter] public EventCallback<string> OnNewFolder { get; set; }
+    [Parameter] public EventCallback<StudentProjectFile> OnDeleteFile { get; set; }
+    [Parameter] public EventCallback<(StudentProjectFile file, string newPath)> OnRenameFile { get; set; }
+    [Parameter] public bool IsReadOnly { get; set; } = false;
+
+    private List<FileNode>? FileTree { get; set; }
+    private HashSet<string> expandedFolders = new HashSet<string>();
+    
+    // Context menu state
+    private bool showContextMenu = false;
+    private double contextMenuX = 0;
+    private double contextMenuY = 0;
+    private FileNode? contextMenuNode = null;
+
+    protected override void OnInitialized()
+    {
+        expandedFolders = new HashSet<string>();
+    }
+
+    protected override void OnParametersSet()
+    {
+        BuildFileTree();
+    }
+
+    private void BuildFileTree()
+    {
+        FileTree = new List<FileNode>();
+        var allNodes = new Dictionary<string, FileNode>();
+
+        // Combine student files and starter files (student files take precedence)
+        var combinedFiles = new List<(string FilePath, string FileName, StudentProjectFile? StudentFile, bool IsReadOnly)>();
+        
+        foreach (var f in Files)
+        {
+            combinedFiles.Add((f.FilePath, f.FileName, f, false));
+        }
+        
+        if (StarterFiles != null)
+        {
+            foreach (var sf in StarterFiles.Where(sf => !Files.Any(f => f.FilePath == sf.FilePath)))
+            {
+                var proxyFile = new StudentProjectFile
+                {
+                    FilePath = sf.FilePath,
+                    FileName = sf.FileName,
+                    Content = sf.Content
+                };
+                combinedFiles.Add((sf.FilePath, sf.FileName, proxyFile, sf.IsReadOnly));
+            }
+        }
+
+        combinedFiles = combinedFiles.OrderBy(f => f.FilePath).ToList();
+
+        foreach (var file in combinedFiles)
+        {
+            var parts = file.FilePath.Replace('\\', '/').Split('/');
+            var currentPath = "";
+            FileNode? parent = null;
+
+            for (int i = 0; i < parts.Length; i++)
+            {
+                var part = parts[i];
+                var isFile = i == parts.Length - 1;
+                currentPath = string.IsNullOrEmpty(currentPath) ? part : $"{currentPath}/{part}";
+
+                if (!allNodes.TryGetValue(currentPath, out var node))
+                {
+                    node = new FileNode
+                    {
+                        Name = part,
+                        Path = currentPath,
+                        IsFolder = !isFile,
+                        File = isFile ? file.StudentFile : null,
+                        IsReadOnly = isFile && file.IsReadOnly,
+                        Children = isFile ? null : new List<FileNode>()
+                    };
+
+                    allNodes[currentPath] = node;
+
+                    if (node.IsFolder && !expandedFolders.Contains(currentPath))
+                    {
+                        expandedFolders.Add(currentPath);
+                    }
+
+                    if (parent != null)
+                    {
+                        parent.Children ??= new List<FileNode>();
+                        if (!parent.Children.Any(c => c.Path == node.Path))
+                        {
+                            parent.Children.Add(node);
+                        }
+                    }
+                    else
+                    {
+                        if (!FileTree.Any(n => n.Path == node.Path))
+                        {
+                            FileTree.Add(node);
+                        }
+                    }
+                }
+
+                parent = node;
+            }
+        }
+
+        SortNodes(FileTree);
+    }
+
+    private void SortNodes(List<FileNode>? nodes)
+    {
+        if (nodes == null) return;
+
+        nodes.Sort((a, b) =>
+        {
+            if (a.IsFolder && !b.IsFolder) return -1;
+            if (!a.IsFolder && b.IsFolder) return 1;
+            return string.Compare(a.Name, b.Name, StringComparison.OrdinalIgnoreCase);
+        });
+
+        foreach (var node in nodes)
+        {
+            SortNodes(node.Children);
+        }
+    }
+
+    private RenderFragment RenderTree(List<FileNode> nodes, int level) => builder =>
+    {
+        foreach (var node in nodes)
+        {
+            var indent = level * 16;
+            var isExpanded = expandedFolders.Contains(node.Path);
+            var isSelected = SelectedFile?.FilePath == node.File?.FilePath && node.File != null;
+
+            builder.OpenElement(0, "div");
+            builder.AddAttribute(1, "class", $"tree-node {(isSelected ? "selected" : "")}");
+            builder.AddAttribute(2, "style", $"padding-left: {indent}px;");
+
+            builder.OpenElement(3, "div");
+            builder.AddAttribute(4, "class", "tree-node-content");
+            builder.AddAttribute(5, "style", $"display: flex; align-items: center; gap: 4px; padding: 4px 8px; cursor: pointer; border-radius: 4px; {(isSelected ? "background: var(--rz-secondary-lighter);" : "")}");
+            
+            if (node.IsFolder)
+            {
+                builder.AddAttribute(6, "onclick", EventCallback.Factory.Create(this, () => ToggleFolder(node.Path)));
+            }
+            else
+            {
+                builder.AddAttribute(6, "onclick", EventCallback.Factory.Create(this, () => SelectFile(node)));
+            }
+            
+            // Right-click context menu
+            builder.AddAttribute(7, "oncontextmenu", EventCallback.Factory.Create<MouseEventArgs>(this, (e) => ShowContextMenu(e, node)));
+
+            if (node.IsFolder)
+            {
+                builder.OpenComponent<RadzenIcon>(10);
+                builder.AddAttribute(11, "Icon", isExpanded ? "expand_more" : "chevron_right");
+                builder.AddAttribute(12, "Style", "font-size: 1rem; color: var(--rz-text-tertiary-color);");
+                builder.CloseComponent();
+            }
+            else
+            {
+                builder.OpenElement(10, "span");
+                builder.AddAttribute(11, "style", "width: 24px;");
+                builder.CloseElement();
+            }
+
+            builder.OpenComponent<RadzenIcon>(20);
+            builder.AddAttribute(21, "Icon", node.IsFolder ? (isExpanded ? "folder_open" : "folder") : GetFileIcon(node.Name));
+            builder.AddAttribute(22, "Style", $"font-size: 1rem; color: {(node.IsFolder ? "var(--rz-warning)" : GetFileIconColor(node.Name))};");
+            builder.CloseComponent();
+
+            builder.OpenElement(30, "span");
+            builder.AddAttribute(31, "style", "font-size: 0.875rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1;");
+            builder.AddContent(32, node.Name);
+            builder.CloseElement();
+
+            if (node.IsReadOnly && !node.IsFolder)
+            {
+                builder.OpenElement(40, "span");
+                builder.AddAttribute(41, "style", "font-size: 0.65rem; color: var(--rz-text-tertiary-color); margin-left: 4px; padding: 1px 4px; background: var(--rz-base-300); border-radius: 2px;");
+                builder.AddContent(42, "RO");
+                builder.CloseElement();
+            }
+
+            builder.CloseElement();
+            builder.CloseElement();
+
+            if (node.IsFolder && isExpanded && node.Children != null && node.Children.Any())
+            {
+                builder.AddContent(50, RenderTree(node.Children, level + 1));
+            }
+        }
+    };
+
+    private void ShowContextMenu(MouseEventArgs e, FileNode node)
+    {
+        if (IsReadOnly) return;
+        
+        contextMenuX = e.ClientX;
+        contextMenuY = e.ClientY;
+        contextMenuNode = node;
+        showContextMenu = true;
+        StateHasChanged();
+    }
+
+    private void CloseContextMenu()
+    {
+        showContextMenu = false;
+        contextMenuNode = null;
+        StateHasChanged();
+    }
+
+    private async Task HandleNewFile()
+    {
+        var folderPath = GetSelectedFolderPath();
+        await CreateNewFileInPath(folderPath);
+    }
+
+    private async Task HandleNewFolder()
+    {
+        var folderPath = GetSelectedFolderPath();
+        await CreateNewFolderInPath(folderPath);
+    }
+
+    private string GetSelectedFolderPath()
+    {
+        if (SelectedFile != null)
+        {
+            var lastSlash = SelectedFile.FilePath.LastIndexOf('/');
+            if (lastSlash > 0)
+                return SelectedFile.FilePath.Substring(0, lastSlash);
+        }
+        return "src";
+    }
+
+    private async Task NewFileInFolder(FileNode folder)
+    {
+        CloseContextMenu();
+        await CreateNewFileInPath(folder.Path);
+    }
+
+    private async Task NewFolderInFolder(FileNode folder)
+    {
+        CloseContextMenu();
+        await CreateNewFolderInPath(folder.Path);
+    }
+
+    private async Task CreateNewFileInPath(string basePath)
+    {
+        var fileName = await DialogService.OpenAsync<TextInputDialog>("New File",
+            new Dictionary<string, object>
+            {
+                { "Label", "File Name" },
+                { "Placeholder", "e.g., MyClass.java" },
+                { "HelpText", $"Will be created in: {basePath}/" }
+            },
+            new DialogOptions { Width = "350px" });
+
+        if (!string.IsNullOrEmpty(fileName))
+        {
+            var fullPath = string.IsNullOrEmpty(basePath) ? fileName : $"{basePath}/{fileName}";
+            fullPath = fullPath.Replace('\\', '/').TrimStart('/');
+            await OnNewFile.InvokeAsync(fullPath);
+        }
+    }
+
+    private async Task CreateNewFolderInPath(string basePath)
+    {
+        var folderName = await DialogService.OpenAsync<TextInputDialog>("New Folder",
+            new Dictionary<string, object>
+            {
+                { "Label", "Folder Name" },
+                { "Placeholder", "e.g., utils" },
+                { "HelpText", $"Will be created in: {basePath}/" }
+            },
+            new DialogOptions { Width = "350px" });
+
+        if (!string.IsNullOrEmpty(folderName))
+        {
+            var fullPath = string.IsNullOrEmpty(basePath) ? folderName : $"{basePath}/{folderName}";
+            fullPath = fullPath.Replace('\\', '/').TrimStart('/');
+            await OnNewFolder.InvokeAsync(fullPath);
+        }
+    }
+
+    private async Task DeleteFile(FileNode node)
+    {
+        CloseContextMenu();
+        if (node.File != null)
+        {
+            var confirm = await DialogService.Confirm(
+                $"Are you sure you want to delete '{node.Name}'?",
+                "Delete File",
+                new ConfirmOptions { OkButtonText = "Delete", CancelButtonText = "Cancel" });
+
+            if (confirm == true)
+            {
+                await OnDeleteFile.InvokeAsync(node.File);
+            }
+        }
+    }
+
+    private async Task RenameFile(FileNode node)
+    {
+        CloseContextMenu();
+        if (node.File != null)
+        {
+            var newName = await DialogService.OpenAsync<TextInputDialog>("Rename File",
+                new Dictionary<string, object>
+                {
+                    { "Label", "New Name" },
+                    { "Placeholder", node.Name },
+                    { "InitialValue", node.Name },
+                    { "HelpText", "Enter the new file name" }
+                },
+                new DialogOptions { Width = "350px" });
+
+            if (!string.IsNullOrEmpty(newName) && newName != node.Name)
+            {
+                var directory = Path.GetDirectoryName(node.Path)?.Replace('\\', '/') ?? "";
+                var newPath = string.IsNullOrEmpty(directory) ? newName : $"{directory}/{newName}";
+                await OnRenameFile.InvokeAsync((node.File, newPath));
+            }
+        }
+    }
+
+    private void ToggleFolder(string path)
+    {
+        if (expandedFolders.Contains(path))
+            expandedFolders.Remove(path);
+        else
+            expandedFolders.Add(path);
+        StateHasChanged();
+    }
+
+    private async Task SelectFile(FileNode node)
+    {
+        if (node.File != null)
+        {
+            SelectedFile = node.File;
+            await SelectedFileChanged.InvokeAsync(SelectedFile);
+            await OnFileSelected.InvokeAsync(SelectedFile);
+        }
+    }
+
+    private string GetFileIcon(string fileName)
+    {
+        var extension = Path.GetExtension(fileName)?.ToLowerInvariant();
+        return extension switch
+        {
+            ".java" => "code",
+            ".py" => "code",
+            ".cs" => "code",
+            ".cpp" or ".c" or ".h" => "code",
+            ".js" => "javascript",
+            ".ts" => "code",
+            ".sql" => "storage",
+            ".csv" => "table_chart",
+            ".json" => "data_object",
+            ".xml" => "code",
+            ".txt" => "description",
+            ".md" => "article",
+            _ => "insert_drive_file"
+        };
+    }
+
+    private string GetFileIconColor(string fileName)
+    {
+        var extension = Path.GetExtension(fileName)?.ToLowerInvariant();
+        return extension switch
+        {
+            ".java" => "#f89820",
+            ".py" => "#3776ab",
+            ".cs" => "#68217a",
+            ".cpp" or ".c" or ".h" => "#00599c",
+            ".js" => "#f7df1e",
+            ".ts" => "#3178c6",
+            ".csv" or ".json" => "#4caf50",
+            ".txt" or ".md" => "var(--rz-text-secondary-color)",
+            _ => "var(--rz-info)"
+        };
+    }
+
+    public class FileNode
+    {
+        public string Name { get; set; } = string.Empty;
+        public string Path { get; set; } = string.Empty;
+        public bool IsFolder { get; set; }
+        public bool IsReadOnly { get; set; }
+        public StudentProjectFile? File { get; set; }
+        public List<FileNode>? Children { get; set; }
+    }
+}

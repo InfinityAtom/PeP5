@@ -97,10 +97,10 @@ namespace PeP.Controllers
 
             if (!result.Success || result.AttemptId == null || result.LaunchToken == null || result.ExpiresAtUtc == null)
             {
-                return BadRequest(new StartResponse(false, result.Error ?? "Start failed.", null, null, null));
+                return BadRequest(new StartResponse(false, result.Error ?? "Start failed.", null, null, null, false));
             }
 
-            return Ok(new StartResponse(true, null, result.AttemptId, result.LaunchToken, result.ExpiresAtUtc));
+            return Ok(new StartResponse(true, null, result.AttemptId, result.LaunchToken, result.ExpiresAtUtc, result.IsProgrammingExam));
         }
 
         public record ExamCodeInfoResponse(bool Success, string? Error, ExamAppExamInfo? Exam);
@@ -111,7 +111,7 @@ namespace PeP.Controllers
 
         public record StartRequest(string? AuthorizationToken);
 
-        public record StartResponse(bool Success, string? Error, int? AttemptId, string? LaunchToken, DateTime? ExpiresAtUtc);
+        public record StartResponse(bool Success, string? Error, int? AttemptId, string? LaunchToken, DateTime? ExpiresAtUtc, bool IsProgrammingExam);
     }
 }
 

@@ -2,6 +2,7 @@
 @attribute [Authorize(Roles = UserRoles.Teacher)]
 @using Microsoft.AspNetCore.Components.Authorization
 @inject IExamService ExamService
+@inject IProgrammingExamService ProgrammingExamService
 @inject UserManager<ApplicationUser> UserManager
 @inject AuthenticationStateProvider AuthenticationStateProvider
 @inject DialogService DialogService
@@ -39,76 +40,159 @@
             </RadzenStack>
         </RadzenCard>
     }
-    else if (examCodes?.Any() == true)
-    {
-        <RadzenDataGrid AllowFiltering="true" AllowColumnResize="true" AllowAlternatingRows="false" FilterMode="FilterMode.Advanced"
-                        AllowSorting="true" PageSize="10" AllowPaging="true" PagerHorizontalAlign="HorizontalAlign.Left" ShowPagingSummary="true"
-                        Data="@examCodes" TItem="ExamCode" ColumnWidth="300px" LogicalFilterOperator="LogicalFilterOperator.Or">
-            <Columns>
-                <RadzenDataGridColumn TItem="ExamCode" Property="Code" Title="Access Code" Frozen="true" Width="120px">
-                    <Template Context="data">
-                        <RadzenText TextStyle="TextStyle.Body1" Style="font-family: monospace; font-weight: bold;">
-                            @data.Code
-                        </RadzenText>
-                    </Template>
-                </RadzenDataGridColumn>
-                <RadzenDataGridColumn TItem="ExamCode" Property="Exam.Title" Title="Exam" Width="200px" />
-                <RadzenDataGridColumn TItem="ExamCode" Title="Course" Width="160px">
-                    <Template Context="data">
-                        @data.Exam.Course?.Name
-                    </Template>
-                </RadzenDataGridColumn>
-                <RadzenDataGridColumn TItem="ExamCode" Property="ExpiresAt" Title="Expires" Width="120px">
-                    <Template Context="data">
-                        @data.ExpiresAt.ToLocalTime().ToString("MM/dd/yyyy HH:mm")
-                    </Template>
-                </RadzenDataGridColumn>
-                <RadzenDataGridColumn TItem="ExamCode" Property="MaxUses" Title="Max Uses" Width="80px">
-                    <Template Context="data">
-                        @(data.MaxUses?.ToString() ?? "Unlimited")
-                    </Template>
-                </RadzenDataGridColumn>
-                <RadzenDataGridColumn TItem="ExamCode" Property="TimesUsed" Title="Used" Width="80px" />
-                <RadzenDataGridColumn TItem="ExamCode" Property="IsActive" Title="Status" Width="100px">
-                    <Template Context="data">
-                        <RadzenBadge BadgeStyle="@GetStatusBadgeStyle(data)" Text="@GetStatusText(data)" />
-                    </Template>
-                </RadzenDataGridColumn>
-                <RadzenDataGridColumn TItem="ExamCode" Property="Description" Title="Description" Width="200px" />
-                <RadzenDataGridColumn TItem="ExamCode" Context="data" Filterable="false" Sortable="false" TextAlign="TextAlign.Right" Width="120px">
-                    <Template Context="data">
-                        <RadzenButton Icon="content_copy" ButtonStyle="ButtonStyle.Light" Variant="Variant.Flat" Size="ButtonSize.Medium" 
-                                    Click="@(() => CopyCode(data.Code))" @onclick:stopPropagation="true" />
-                        <RadzenButton Icon="edit" ButtonStyle="ButtonStyle.Light" Variant="Variant.Flat" Size="ButtonSize.Medium" 
-                                    Click="@(() => EditCode(data))" @onclick:stopPropagation="true" />
-                        <RadzenButton Icon="delete" ButtonStyle="ButtonStyle.Danger" Variant="Variant.Flat" Size="ButtonSize.Medium" 
-                                    Click="@(() => DeleteCode(data))" @onclick:stopPropagation="true" />
-                    </Template>
-                </RadzenDataGridColumn>
-            </Columns>
-        </RadzenDataGrid>
-    }
     else
     {
-        <RadzenCard>
-            <RadzenStack Gap="1rem" class="text-center">
-                <RadzenIcon Icon="vpn_key" Style="font-size: 4rem; color: var(--rz-secondary);" />
-                <RadzenText TextStyle="TextStyle.H6">No Access Codes Yet</RadzenText>
-                <RadzenText TextStyle="TextStyle.Body2" class="text-muted">
-                    Generate access codes to allow students to take your exams.
-                </RadzenText>
-                <RadzenButton Text="Generate Code" Icon="vpn_key" ButtonStyle="ButtonStyle.Primary" 
-                            Click="@ShowGenerateCodeDialog" />
-            </RadzenStack>
-        </RadzenCard>
+        <RadzenTabs @bind-SelectedIndex="@selectedTabIndex">
+            <Tabs>
+                <!-- Multiple Choice Exam Codes Tab -->
+                <RadzenTabsItem Text="Multiple Choice Exams">
+                    @if (examCodes?.Any() == true)
+                    {
+                        <RadzenDataGrid AllowFiltering="true" AllowColumnResize="true" AllowAlternatingRows="false" FilterMode="FilterMode.Advanced"
+                                        AllowSorting="true" PageSize="10" AllowPaging="true" PagerHorizontalAlign="HorizontalAlign.Left" ShowPagingSummary="true"
+                                        Data="@examCodes" TItem="ExamCode" ColumnWidth="300px" LogicalFilterOperator="LogicalFilterOperator.Or" Style="margin-top: 1rem;">
+                            <Columns>
+                                <RadzenDataGridColumn TItem="ExamCode" Property="Code" Title="Access Code" Frozen="true" Width="120px">
+                                    <Template Context="data">
+                                        <RadzenText TextStyle="TextStyle.Body1" Style="font-family: monospace; font-weight: bold;">
+                                            @data.Code
+                                        </RadzenText>
+                                    </Template>
+                                </RadzenDataGridColumn>
+                                <RadzenDataGridColumn TItem="ExamCode" Property="Exam.Title" Title="Exam" Width="200px" />
+                                <RadzenDataGridColumn TItem="ExamCode" Title="Course" Width="160px">
+                                    <Template Context="data">
+                                        @data.Exam.Course?.Name
+                                    </Template>
+                                </RadzenDataGridColumn>
+                                <RadzenDataGridColumn TItem="ExamCode" Property="ExpiresAt" Title="Expires" Width="120px">
+                                    <Template Context="data">
+                                        @data.ExpiresAt.ToLocalTime().ToString("MM/dd/yyyy HH:mm")
+                                    </Template>
+                                </RadzenDataGridColumn>
+                                <RadzenDataGridColumn TItem="ExamCode" Property="MaxUses" Title="Max Uses" Width="80px">
+                                    <Template Context="data">
+                                        @(data.MaxUses?.ToString() ?? "Unlimited")
+                                    </Template>
+                                </RadzenDataGridColumn>
+                                <RadzenDataGridColumn TItem="ExamCode" Property="TimesUsed" Title="Used" Width="80px" />
+                                <RadzenDataGridColumn TItem="ExamCode" Property="IsActive" Title="Status" Width="100px">
+                                    <Template Context="data">
+                                        <RadzenBadge BadgeStyle="@GetStatusBadgeStyle(data)" Text="@GetStatusText(data)" />
+                                    </Template>
+                                </RadzenDataGridColumn>
+                                <RadzenDataGridColumn TItem="ExamCode" Property="Description" Title="Description" Width="200px" />
+                                <RadzenDataGridColumn TItem="ExamCode" Context="data" Filterable="false" Sortable="false" TextAlign="TextAlign.Right" Width="120px">
+                                    <Template Context="data">
+                                        <RadzenButton Icon="content_copy" ButtonStyle="ButtonStyle.Light" Variant="Variant.Flat" Size="ButtonSize.Medium" 
+                                                    Click="@(() => CopyCode(data.Code))" @onclick:stopPropagation="true" />
+                                        <RadzenButton Icon="edit" ButtonStyle="ButtonStyle.Light" Variant="Variant.Flat" Size="ButtonSize.Medium" 
+                                                    Click="@(() => EditCode(data))" @onclick:stopPropagation="true" />
+                                        <RadzenButton Icon="delete" ButtonStyle="ButtonStyle.Danger" Variant="Variant.Flat" Size="ButtonSize.Medium" 
+                                                    Click="@(() => DeleteCode(data))" @onclick:stopPropagation="true" />
+                                    </Template>
+                                </RadzenDataGridColumn>
+                            </Columns>
+                        </RadzenDataGrid>
+                    }
+                    else
+                    {
+                        <RadzenCard Style="margin-top: 1rem;">
+                            <RadzenStack Gap="1rem" class="text-center">
+                                <RadzenIcon Icon="vpn_key" Style="font-size: 4rem; color: var(--rz-secondary);" />
+                                <RadzenText TextStyle="TextStyle.H6">No Multiple Choice Exam Codes Yet</RadzenText>
+                                <RadzenText TextStyle="TextStyle.Body2" class="text-muted">
+                                    Generate access codes to allow students to take your multiple choice exams.
+                                </RadzenText>
+                                <RadzenButton Text="Generate Code" Icon="vpn_key" ButtonStyle="ButtonStyle.Primary" 
+                                            Click="@ShowGenerateCodeDialog" />
+                            </RadzenStack>
+                        </RadzenCard>
+                    }
+                </RadzenTabsItem>
+
+                <!-- Programming Exam Codes Tab -->
+                <RadzenTabsItem Text="Programming Exams">
+                    @if (programmingExamCodes?.Any() == true)
+                    {
+                        <RadzenDataGrid AllowFiltering="true" AllowColumnResize="true" AllowAlternatingRows="false" FilterMode="FilterMode.Advanced"
+                                        AllowSorting="true" PageSize="10" AllowPaging="true" PagerHorizontalAlign="HorizontalAlign.Left" ShowPagingSummary="true"
+                                        Data="@programmingExamCodes" TItem="ProgrammingExamCode" ColumnWidth="300px" LogicalFilterOperator="LogicalFilterOperator.Or" Style="margin-top: 1rem;">
+                            <Columns>
+                                <RadzenDataGridColumn TItem="ProgrammingExamCode" Property="Code" Title="Access Code" Frozen="true" Width="120px">
+                                    <Template Context="data">
+                                        <RadzenText TextStyle="TextStyle.Body1" Style="font-family: monospace; font-weight: bold;">
+                                            @data.Code
+                                        </RadzenText>
+                                    </Template>
+                                </RadzenDataGridColumn>
+                                <RadzenDataGridColumn TItem="ProgrammingExamCode" Property="ProgrammingExam.Title" Title="Exam" Width="200px" />
+                                <RadzenDataGridColumn TItem="ProgrammingExamCode" Title="Language" Width="100px">
+                                    <Template Context="data">
+                                        <RadzenBadge BadgeStyle="BadgeStyle.Info" Text="@GetLanguageName(data.ProgrammingExam?.Language ?? ProgrammingLanguage.CSharp)" />
+                                    </Template>
+                                </RadzenDataGridColumn>
+                                <RadzenDataGridColumn TItem="ProgrammingExamCode" Title="Course" Width="160px">
+                                    <Template Context="data">
+                                        @data.ProgrammingExam?.Course?.Name
+                                    </Template>
+                                </RadzenDataGridColumn>
+                                <RadzenDataGridColumn TItem="ProgrammingExamCode" Property="ExpiresAt" Title="Expires" Width="120px">
+                                    <Template Context="data">
+                                        @data.ExpiresAt.ToLocalTime().ToString("MM/dd/yyyy HH:mm")
+                                    </Template>
+                                </RadzenDataGridColumn>
+                                <RadzenDataGridColumn TItem="ProgrammingExamCode" Property="MaxUses" Title="Max Uses" Width="80px">
+                                    <Template Context="data">
+                                        @(data.MaxUses?.ToString() ?? "Unlimited")
+                                    </Template>
+                                </RadzenDataGridColumn>
+                                <RadzenDataGridColumn TItem="ProgrammingExamCode" Property="TimesUsed" Title="Used" Width="80px" />
+                                <RadzenDataGridColumn TItem="ProgrammingExamCode" Property="IsActive" Title="Status" Width="100px">
+                                    <Template Context="data">
+                                        <RadzenBadge BadgeStyle="@GetProgrammingCodeStatusBadgeStyle(data)" Text="@GetProgrammingCodeStatusText(data)" />
+                                    </Template>
+                                </RadzenDataGridColumn>
+                                <RadzenDataGridColumn TItem="ProgrammingExamCode" Property="Description" Title="Description" Width="200px" />
+                                <RadzenDataGridColumn TItem="ProgrammingExamCode" Context="data" Filterable="false" Sortable="false" TextAlign="TextAlign.Right" Width="120px">
+                                    <Template Context="data">
+                                        <RadzenButton Icon="content_copy" ButtonStyle="ButtonStyle.Light" Variant="Variant.Flat" Size="ButtonSize.Medium" 
+                                                    Click="@(() => CopyCode(data.Code))" @onclick:stopPropagation="true" />
+                                        <RadzenButton Icon="delete" ButtonStyle="ButtonStyle.Danger" Variant="Variant.Flat" Size="ButtonSize.Medium" 
+                                                    Click="@(() => DeleteProgrammingCode(data))" @onclick:stopPropagation="true" />
+                                    </Template>
+                                </RadzenDataGridColumn>
+                            </Columns>
+                        </RadzenDataGrid>
+                    }
+                    else
+                    {
+                        <RadzenCard Style="margin-top: 1rem;">
+                            <RadzenStack Gap="1rem" class="text-center">
+                                <RadzenIcon Icon="code" Style="font-size: 4rem; color: var(--rz-secondary);" />
+                                <RadzenText TextStyle="TextStyle.H6">No Programming Exam Codes Yet</RadzenText>
+                                <RadzenText TextStyle="TextStyle.Body2" class="text-muted">
+                                    Go to the Exams page and generate codes for your programming exams from there.
+                                </RadzenText>
+                                <RadzenButton Text="Go to Exams" Icon="assignment" ButtonStyle="ButtonStyle.Primary" 
+                                            Click="@(() => Navigation.NavigateTo("/teacher/exams"))" />
+                            </RadzenStack>
+                        </RadzenCard>
+                    }
+                </RadzenTabsItem>
+            </Tabs>
+        </RadzenTabs>
     }
 </RadzenStack>
 
 @code {
     [Inject] private IJSRuntime JSRuntime { get; set; } = default!;
+    [Inject] private NavigationManager Navigation { get; set; } = default!;
 
     private List<ExamCode>? examCodes;
+    private List<ProgrammingExamCode>? programmingExamCodes;
     private bool isLoading = true;
+    private int selectedTabIndex = 0;
 
     protected override async Task OnInitializedAsync()
     {
@@ -127,6 +211,7 @@
                 if (!string.IsNullOrEmpty(userId))
                 {
                     examCodes = await ExamService.GetExamCodesForTeacherAsync(userId);
+                    programmingExamCodes = await ProgrammingExamService.GetProgrammingExamCodesForTeacherAsync(userId);
                 }
             }
         }
@@ -135,6 +220,7 @@
             Console.WriteLine($"Error loading exam codes: {ex.Message}");
             NotificationService.Notify(NotificationSeverity.Error, "Error", "Failed to load exam codes");
             examCodes = new List<ExamCode>();
+            programmingExamCodes = new List<ProgrammingExamCode>();
         }
         finally
         {
@@ -187,6 +273,27 @@
         }
     }
 
+    private async Task DeleteProgrammingCode(ProgrammingExamCode code)
+    {
+        var confirm = await DialogService.Confirm($"Are you sure you want to delete the exam code '{code.Code}'?", 
+            "Delete Exam Code", new ConfirmOptions() { OkButtonText = "Delete", CancelButtonText = "Cancel" });
+
+        if (confirm == true)
+        {
+            try
+            {
+                await ProgrammingExamService.DeleteProgrammingExamCodeAsync(code.Id);
+                NotificationService.Notify(NotificationSeverity.Success, "Success", "Programming exam code deleted successfully");
+                await LoadExamCodes();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error deleting programming exam code: {ex.Message}");
+                NotificationService.Notify(NotificationSeverity.Error, "Error", "Failed to delete programming exam code");
+            }
+        }
+    }
+
     private async Task CopyCode(string code)
     {
         try
@@ -227,5 +334,49 @@
             return "Used Up";
         
         return "Active";
+    }
+
+    private BadgeStyle GetProgrammingCodeStatusBadgeStyle(ProgrammingExamCode code)
+    {
+        if (!code.IsActive)
+            return BadgeStyle.Danger;
+        
+        if (code.ExpiresAt < DateTime.UtcNow)
+            return BadgeStyle.Warning;
+        
+        if (code.MaxUses.HasValue && code.TimesUsed >= code.MaxUses.Value)
+            return BadgeStyle.Warning;
+        
+        return BadgeStyle.Success;
+    }
+
+    private string GetProgrammingCodeStatusText(ProgrammingExamCode code)
+    {
+        if (!code.IsActive)
+            return "Inactive";
+        
+        if (code.ExpiresAt < DateTime.UtcNow)
+            return "Expired";
+        
+        if (code.MaxUses.HasValue && code.TimesUsed >= code.MaxUses.Value)
+            return "Used Up";
+        
+        return "Active";
+    }
+
+    private string GetLanguageName(ProgrammingLanguage language)
+    {
+        return language switch
+        {
+            ProgrammingLanguage.CSharp => "C#",
+            ProgrammingLanguage.Java => "Java",
+            ProgrammingLanguage.Python => "Python",
+            ProgrammingLanguage.JavaScript => "JavaScript",
+            ProgrammingLanguage.TypeScript => "TypeScript",
+            ProgrammingLanguage.CPlusPlus => "C++",
+            ProgrammingLanguage.C => "C",
+            ProgrammingLanguage.SQL => "SQL",
+            _ => language.ToString()
+        };
     }
 }
