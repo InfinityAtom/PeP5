@@ -47,14 +47,6 @@
 
 **Web Application:** [https://pep-webapp-795388481242.us-central1.run.app](https://pep-webapp-795388481242.us-central1.run.app)
 
-### Demo Credentials
-
-| Role | Email | Password |
-|------|-------|----------|
-| Admin | `admin@pep.com` | `Admin123!` |
-
----
-
 ## 📥 Download
 
 ### PeP Exam App (Secure Desktop Client)
