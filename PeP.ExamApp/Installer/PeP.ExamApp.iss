@@ -2,7 +2,7 @@
 ; Download Inno Setup from: https://jrsoftware.org/isinfo.php
 
 #define MyAppName "PeP Exam App"
-#define MyAppVersion "1.0.0"
+#define MyAppVersion "5.0.0"
 #define MyAppPublisher "Infinity Atom"
 #define MyAppURL "https://pep.infinityatom.com"
 #define MyAppExeName "PeP.ExamApp.exe"

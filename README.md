@@ -53,9 +53,10 @@
 
 Download the secure exam browser for Windows:
 
-| Version | Download | Size |
-|---------|----------|------|
-| **v1.0.0** | [⬇️ Download PeP.ExamApp_Setup_1.0.0.exe](https://storage.googleapis.com/pep-downloads/PeP.ExamApp_Setup_1.0.0.exe) | ~48 MB |
+| Version | Download | Size | What's New |
+|---------|----------|------|------------|
+| **v5.0.0** | [⬇️ Download PeP.ExamApp_Setup_5.0.0.exe](https://storage.googleapis.com/pep-downloads/PeP.ExamApp_Setup_5.0.0.exe) | ~50 MB | Programming Exams, AI Evaluation |
+| v1.0.0 | [Download](https://storage.googleapis.com/pep-downloads/PeP.ExamApp_Setup_1.0.0.exe) | ~48 MB | Initial release |
 
 **System Requirements:**
 - Windows 10/11 (64-bit)
