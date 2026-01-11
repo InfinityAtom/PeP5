@@ -731,19 +731,45 @@ else if (currentAttempt != null && programmingExam != null)
         {
             try
             {
+                // First check if file exists in studentFiles
                 var studentFile = studentFiles.FirstOrDefault(f => f.FilePath == file.Key);
+                
                 if (studentFile != null)
                 {
+                    // Update existing student file
+                    studentFile.Content = file.Value;
                     await ProgrammingExamService.SaveStudentFileAsync(
                         currentAttempt.Id,
                         file.Key,
                         studentFile.FileName,
                         file.Value);
                 }
+                else
+                {
+                    // File might be from starterFiles or a new file - create it in studentFiles
+                    var starterFile = starterFiles.FirstOrDefault(f => f.FilePath == file.Key);
+                    var fileName = starterFile?.FileName ?? Path.GetFileName(file.Key);
+                    
+                    // Create new student file from modified content
+                    var newStudentFile = new StudentProjectFile
+                    {
+                        ProgrammingExamAttemptId = currentAttempt.Id,
+                        FilePath = file.Key,
+                        FileName = fileName,
+                        Content = file.Value
+                    };
+                    studentFiles.Add(newStudentFile);
+                    
+                    await ProgrammingExamService.SaveStudentFileAsync(
+                        currentAttempt.Id,
+                        file.Key,
+                        fileName,
+                        file.Value);
+                }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Auto-save error: {ex.Message}");
+                Console.WriteLine($"Auto-save error for {file.Key}: {ex.Message}");
             }
         }
 
