@@ -458,14 +458,19 @@ else if (currentAttempt != null && programmingExam != null)
             var starter = starterFiles.FirstOrDefault(f => f.FilePath == file.FilePath);
             if (starter != null)
             {
+                // Use content from fileContents if modified, otherwise use original starter content
+                var contentToUse = fileContents.TryGetValue(starter.FilePath, out var existingContent) 
+                    ? existingContent 
+                    : starter.Content;
+                    
                 actualFile = new StudentProjectFile
                 {
                     FilePath = starter.FilePath,
                     FileName = starter.FileName,
-                    Content = starter.Content,
+                    Content = contentToUse,
                     ProgrammingExamAttemptId = currentAttempt!.Id
                 };
-                // Make sure content is in fileContents for tab switching
+                // Initialize fileContents for this file if not already present
                 if (!fileContents.ContainsKey(starter.FilePath))
                 {
                     fileContents[starter.FilePath] = starter.Content;
@@ -474,6 +479,23 @@ else if (currentAttempt != null && programmingExam != null)
             else
             {
                 actualFile = file;
+                // Initialize fileContents for this file
+                if (!fileContents.ContainsKey(file.FilePath))
+                {
+                    fileContents[file.FilePath] = file.Content;
+                }
+            }
+        }
+        else
+        {
+            // Use content from fileContents if available (preserves edits)
+            if (fileContents.TryGetValue(actualFile.FilePath, out var existingContent))
+            {
+                actualFile.Content = existingContent;
+            }
+            else
+            {
+                fileContents[actualFile.FilePath] = actualFile.Content;
             }
         }
 
@@ -512,6 +534,21 @@ else if (currentAttempt != null && programmingExam != null)
             catch { /* Editor might not be ready */ }
         }
 
+        // Get the content to display - use fileContents if we have it (preserves edits)
+        string contentToUse;
+        if (fileContents.TryGetValue(tab.FilePath, out var existingContent))
+        {
+            contentToUse = existingContent;
+        }
+        else
+        {
+            // Get from studentFiles or starterFiles
+            var studentFile = studentFiles.FirstOrDefault(f => f.FilePath == tab.FilePath);
+            var starterFile = starterFiles.FirstOrDefault(f => f.FilePath == tab.FilePath);
+            contentToUse = studentFile?.Content ?? starterFile?.Content ?? "";
+            fileContents[tab.FilePath] = contentToUse;
+        }
+
         // Find actual file from studentFiles first, then starterFiles, then fall back to tab
         var actualFile = studentFiles.FirstOrDefault(f => f.FilePath == tab.FilePath);
         if (actualFile == null)
@@ -524,19 +561,25 @@ else if (currentAttempt != null && programmingExam != null)
                 {
                     FilePath = starter.FilePath,
                     FileName = starter.FileName,
-                    Content = starter.Content,
+                    Content = contentToUse,
                     ProgrammingExamAttemptId = currentAttempt?.Id ?? 0
                 };
-                // Make sure content is in fileContents
-                if (!fileContents.ContainsKey(starter.FilePath))
-                {
-                    fileContents[starter.FilePath] = starter.Content;
-                }
             }
             else
             {
-                actualFile = tab;
+                actualFile = new StudentProjectFile
+                {
+                    FilePath = tab.FilePath,
+                    FileName = tab.FileName,
+                    Content = contentToUse,
+                    ProgrammingExamAttemptId = currentAttempt?.Id ?? 0
+                };
             }
+        }
+        else
+        {
+            // Update the content to use our tracked content
+            actualFile.Content = contentToUse;
         }
         
         selectedFile = actualFile;
@@ -727,6 +770,31 @@ else if (currentAttempt != null && programmingExam != null)
     {
         if (currentAttempt == null) return;
 
+        // First, save current editor content
+        if (selectedFile != null && codeEditor != null)
+        {
+            try
+            {
+                var currentContent = await codeEditor.GetEditorContent();
+                if (!string.IsNullOrEmpty(currentContent))
+                {
+                    fileContents[selectedFile.FilePath] = currentContent;
+                    
+                    // Check if modified
+                    var originalFile = studentFiles.FirstOrDefault(f => f.FilePath == selectedFile.FilePath);
+                    var starterFile = starterFiles.FirstOrDefault(f => f.FilePath == selectedFile.FilePath);
+                    var originalContent = originalFile?.Content ?? starterFile?.Content ?? "";
+                    
+                    if (currentContent != originalContent)
+                    {
+                        modifiedFiles[selectedFile.FilePath] = currentContent;
+                    }
+                }
+            }
+            catch { }
+        }
+
+        // Save all modified files
         foreach (var file in modifiedFiles.ToList())
         {
             try
@@ -773,6 +841,38 @@ else if (currentAttempt != null && programmingExam != null)
             }
         }
 
+        // Also save any starter files that have content in fileContents but aren't in studentFiles
+        // This ensures the AI evaluation gets all files
+        foreach (var starter in starterFiles)
+        {
+            if (!studentFiles.Any(f => f.FilePath == starter.FilePath))
+            {
+                try
+                {
+                    var content = fileContents.TryGetValue(starter.FilePath, out var fc) ? fc : starter.Content;
+                    
+                    var newStudentFile = new StudentProjectFile
+                    {
+                        ProgrammingExamAttemptId = currentAttempt.Id,
+                        FilePath = starter.FilePath,
+                        FileName = starter.FileName,
+                        Content = content
+                    };
+                    studentFiles.Add(newStudentFile);
+                    
+                    await ProgrammingExamService.SaveStudentFileAsync(
+                        currentAttempt.Id,
+                        starter.FilePath,
+                        starter.FileName,
+                        content);
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Auto-save starter file error for {starter.FilePath}: {ex.Message}");
+                }
+            }
+        }
+
         modifiedFiles.Clear();
     }
 
@@ -798,11 +898,42 @@ else if (currentAttempt != null && programmingExam != null)
 
         try
         {
+            // Save current editor content first
+            if (selectedFile != null && codeEditor != null)
+            {
+                try
+                {
+                    var currentContent = await codeEditor.GetEditorContent();
+                    if (!string.IsNullOrEmpty(currentContent))
+                    {
+                        fileContents[selectedFile.FilePath] = currentContent;
+                        modifiedFiles[selectedFile.FilePath] = currentContent;
+                    }
+                }
+                catch { }
+            }
+
             // Save all files first
             await AutoSaveFiles();
 
-            // Gather all files
-            var files = studentFiles.ToDictionary(f => f.FilePath, f => f.Content);
+            // Gather all files with their current content
+            var files = new Dictionary<string, string>();
+            
+            // First add all starter files (provides base content)
+            foreach (var starter in starterFiles)
+            {
+                files[starter.FilePath] = fileContents.TryGetValue(starter.FilePath, out var content) 
+                    ? content 
+                    : starter.Content;
+            }
+            
+            // Then add/override with student files and their current content
+            foreach (var studentFile in studentFiles)
+            {
+                files[studentFile.FilePath] = fileContents.TryGetValue(studentFile.FilePath, out var content)
+                    ? content
+                    : studentFile.Content;
+            }
 
             // Execute code
             var result = await CodeExecutionService.ExecuteCodeAsync(

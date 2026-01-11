@@ -276,7 +276,7 @@ namespace PeP.Services
             }
 
             var modelSetting = await _context.PlatformSettings.FirstOrDefaultAsync(s => s.Key == "OpenAIModel");
-            var model = string.IsNullOrWhiteSpace(modelSetting?.Value) ? "gpt-4o-mini" : modelSetting!.Value;
+            var model = string.IsNullOrWhiteSpace(modelSetting?.Value) ? "gpt-5.2" : modelSetting!.Value;
 
             var languageName = GetLanguageName(language);
             var extension = GetFileExtension(language);
@@ -521,7 +521,7 @@ Rules:
                 }
 
                 var modelSetting = await _context.PlatformSettings.FirstOrDefaultAsync(s => s.Key == "OpenAIModel");
-                var model = string.IsNullOrWhiteSpace(modelSetting?.Value) ? "gpt-4o-mini" : modelSetting!.Value;
+                var model = string.IsNullOrWhiteSpace(modelSetting?.Value) ? "gpt-5.2" : modelSetting!.Value;
 
                 var languageName = GetLanguageName(language);
 
