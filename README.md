@@ -40,6 +40,7 @@
 - 📄 **CSV Data Viewer** - Tab-based viewer for data files
 - 🔄 **Resizable Splitter** - Adjustable split between code editor and task panel
 - 🧠 **AI Exam Generation** - Generate complete programming projects with AI
+- 📦 **Multi-File Projects** - Support for multiple source files in Java, Python, C#, and JavaScript
 
 ---
 
@@ -206,10 +207,14 @@ Download the secure exam browser for Windows:
 #### Programming Languages Supported
 | Language | Features |
 |----------|----------|
-| 🐍 **Python** | Full syntax support, CSV parsing, pandas integration |
-| ☕ **Java** | Class-based projects, main method detection |
-| 🌐 **JavaScript** | ES6+ syntax, Node.js-style console output |
-| 💜 **C#** | .NET-style projects with proper class structure |
+| 🐍 **Python** | Full syntax support, CSV parsing, pandas integration, multi-file projects |
+| ☕ **Java** | Class-based projects, multi-file support, automatic class combining for execution |
+| 🌐 **JavaScript** | ES6+ syntax, Node.js-style console output, multi-file modules |
+| 💜 **C#** | .NET-style projects with proper class structure, multi-file support |
+
+> **📝 Technical Note: Java Multi-File Support**
+> 
+> Java projects with multiple classes are automatically combined into a single source file for execution via the Piston API. The main class (containing `public static void main`) is placed first and remains `public`, while all other classes are converted to package-private (non-public) to ensure successful compilation. Import statements are deduplicated and placed at the top of the combined file.
 
 #### Teacher Tools
 | Feature | Description |
@@ -345,6 +350,7 @@ PeP.ExamApp/
 | Service | Purpose |
 |---------|---------|
 | **OpenAI API (GPT-4o-mini)** | AI question generation & code evaluation |
+| **Piston API** | Code execution engine for Python, Java, JavaScript, and C# |
 | **SMTP** | Email notifications (optional) |
 
 ### AI Features (OpenAI Integration)
