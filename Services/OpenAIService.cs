@@ -525,44 +525,86 @@ Rules:
 
                 var languageName = GetLanguageName(language);
 
-                // Build the files content string
+                // Build the files content string - ALWAYS include ALL files for context
                 var filesContent = new System.Text.StringBuilder();
+                var targetFilesContent = new System.Text.StringBuilder();
                 
-                // Filter to target files if specified
-                var filesToEvaluate = studentFiles;
+                // Determine target files for focused evaluation
+                var targetFileList = new List<string>();
                 if (!string.IsNullOrWhiteSpace(targetFiles))
                 {
-                    var targetFileList = targetFiles.Split(',', StringSplitOptions.RemoveEmptyEntries)
+                    targetFileList = targetFiles.Split(',', StringSplitOptions.RemoveEmptyEntries)
                         .Select(f => f.Trim())
                         .ToList();
-                    filesToEvaluate = studentFiles
-                        .Where(f => targetFileList.Any(t => f.Key.EndsWith(t, StringComparison.OrdinalIgnoreCase) || f.Key.Contains(t, StringComparison.OrdinalIgnoreCase)))
-                        .ToDictionary(f => f.Key, f => f.Value);
-                    
-                    // If no matches, fall back to all files
-                    if (!filesToEvaluate.Any())
-                        filesToEvaluate = studentFiles;
                 }
-
-                foreach (var file in filesToEvaluate)
+                
+                // Separate files into target (to evaluate) and context (for reference)
+                var targetFilesDict = new Dictionary<string, string>();
+                var contextFilesDict = new Dictionary<string, string>();
+                
+                foreach (var file in studentFiles)
                 {
-                    filesContent.AppendLine($"=== File: {file.Key} ===");
-                    filesContent.AppendLine(file.Value);
-                    filesContent.AppendLine();
+                    bool isTargetFile = targetFileList.Count == 0 || // If no targets specified, all are targets
+                        targetFileList.Any(t => file.Key.EndsWith(t, StringComparison.OrdinalIgnoreCase) || file.Key.Contains(t, StringComparison.OrdinalIgnoreCase));
+                    
+                    if (isTargetFile)
+                        targetFilesDict[file.Key] = file.Value;
+                    else
+                        contextFilesDict[file.Key] = file.Value;
                 }
+                
+                // If target filtering resulted in no files, use all files as targets
+                if (!targetFilesDict.Any())
+                {
+                    targetFilesDict = studentFiles;
+                    contextFilesDict = new Dictionary<string, string>();
+                }
+                
+                // Build target files section (primary evaluation)
+                targetFilesContent.AppendLine("=== TARGET FILES (Evaluate These) ===");
+                foreach (var file in targetFilesDict)
+                {
+                    targetFilesContent.AppendLine($"\n--- File: {file.Key} ---");
+                    targetFilesContent.AppendLine(file.Value);
+                }
+                
+                // Build context files section (reference only)
+                if (contextFilesDict.Any())
+                {
+                    filesContent.AppendLine("\n=== CONTEXT FILES (For Reference - Student also created these) ===");
+                    foreach (var file in contextFilesDict)
+                    {
+                        filesContent.AppendLine($"\n--- File: {file.Key} ---");
+                        filesContent.AppendLine(file.Value);
+                    }
+                }
+                
+                // Combine all content
+                var allFilesContent = targetFilesContent.ToString() + filesContent.ToString();
 
                 var systemPrompt = $@"You are a fair but thorough {languageName} code reviewer and programming instructor. 
 Your task is to evaluate student code based on the given task instructions.
 
+CRITICAL CONTEXT:
+- Students work on a MULTI-FILE PROJECT. You will see ALL files in their project.
+- Files are organized into TARGET FILES (main focus) and CONTEXT FILES (supporting code the student created).
+- EVALUATE ALL STUDENT WORK - if they created additional classes/files to complete the task, consider those!
+- Students are given starter files that may include an entry point (Main.java, main.py, Program.cs, etc.)
+- The entry point file may be empty or contain only boilerplate - THIS IS INTENTIONAL if the task doesn't require modifying it
+- If the task asks to ""create a Student class"" or ""implement X in a new file"", look for that file in the project!
+- Look for classes, interfaces, and implementations across ALL files, not just the entry point
+
 GRADING PRINCIPLES:
-1. EMPTY FUNCTIONS/METHODS = 0 POINTS. If a function body is empty, contains only comments, or just returns null/default without logic, it gets zero.
-2. PLACEHOLDER CODE = 0 POINTS. Code like 'throw new NotImplementedException()', 'pass', 'TODO' = zero points.
-3. Give partial credit for partial solutions that show understanding and effort.
-4. Code that attempts the task but has bugs should get proportional credit based on how close it is to working.
-5. Consider the student's approach and logic, not just whether it produces perfect output.
+1. REVIEW ALL FILES: Check EVERY file in the project for implementations related to the task.
+2. FOCUS ON THE TASK: Evaluate code that addresses what the task instructions ask for.
+3. IGNORE UNTOUCHED STARTER FILES: If Main.java or similar is empty but the task didn't ask to modify it, that's fine.
+4. EMPTY IMPLEMENTATIONS = 0 POINTS: If the task asks to implement something and that specific code is empty, give zero.
+5. PLACEHOLDER CODE = 0 POINTS: Code like 'throw new NotImplementedException()', 'pass', 'TODO' in required implementations = zero points.
+6. Give partial credit for partial solutions that show understanding and effort.
+7. Code that attempts the task but has bugs should get proportional credit.
 
 SCORING GUIDELINES:
-- 0%: Empty, placeholder, or code that makes no attempt at the task
+- 0%: The specific code requested by the task is empty, placeholder, or makes no attempt (checked ALL files)
 - 10-30%: Code attempts the task but has fundamental misunderstandings or major bugs
 - 31-50%: Partially working code with significant issues but shows understanding
 - 51-70%: Working code that addresses most requirements but has bugs or missing features
@@ -573,9 +615,10 @@ EVALUATION CRITERIA:
 1. Correctness (40%) - Does the code implement what the task asks? Does the logic make sense?
 2. Code Quality (25%) - Is the code well-structured, readable, properly named?
 3. Efficiency (15%) - Is the solution reasonably efficient?
-4. Completion (20%) - How much of the requirements were addressed?
+4. Completion (20%) - How much of the task requirements were addressed?
 
 Be fair and constructive. Award partial credit where the student shows understanding.
+REMEMBER: Check ALL project files for implementations. Students may create new files to complete tasks.
 
 Return your evaluation as JSON with this exact structure:
 {{
@@ -609,13 +652,16 @@ IMPORTANT: Empty functions with no implementation = 0 points. But give fair part
 
 ## Maximum Points: {maxPoints}
 
-## Student's Code:
-{filesContent}
+## Student's Project Files:
+{allFilesContent}
 
 GRADING REMINDER: 
-- Empty functions or placeholder code only → 0 points
+- REVIEW ALL FILES ABOVE - The student may have created new files to complete the task
+- Look for implementations in ALL files, not just Main.java or the entry point
+- If the task asks to create new classes/files, FIND THEM in the project files above
+- Entry point files may be empty if the task doesn't require modifying them - this is OK
+- Empty implementations for what the task SPECIFICALLY asks = 0 points
 - Give partial credit for genuine attempts that show understanding
-- Be fair but maintain standards
 
 Please evaluate this code and provide your assessment as JSON.";
 

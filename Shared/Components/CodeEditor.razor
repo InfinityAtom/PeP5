@@ -122,6 +122,39 @@
         Language = language;
         await JSRuntime.InvokeVoidAsync("pepMonaco.setLanguage", EditorId, GetMonacoLanguage());
     }
+    
+    /// <summary>
+    /// Update project files for cross-file symbol detection (autocomplete from other files)
+    /// </summary>
+    public async Task UpdateProjectFiles(Dictionary<string, string> files)
+    {
+        await JSRuntime.InvokeVoidAsync("pepMonaco.updateProjectFiles", files);
+    }
+    
+    /// <summary>
+    /// Update a single file for symbol detection
+    /// </summary>
+    public async Task UpdateFileForSymbols(string filePath, string content)
+    {
+        await JSRuntime.InvokeVoidAsync("pepMonaco.updateFile", filePath, content);
+    }
+    
+    /// <summary>
+    /// Manually run diagnostics on the current editor content
+    /// </summary>
+    public async Task RunDiagnostics()
+    {
+        var content = await GetEditorContent();
+        await JSRuntime.InvokeVoidAsync("pepMonaco.runDiagnostics", EditorId, content, Language);
+    }
+    
+    /// <summary>
+    /// Clear all diagnostics from the editor
+    /// </summary>
+    public async Task ClearDiagnostics()
+    {
+        await JSRuntime.InvokeVoidAsync("pepMonaco.clearMarkers", EditorId);
+    }
 
     private async Task OnSaveClick()
     {

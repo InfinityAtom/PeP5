@@ -152,6 +152,9 @@ namespace PeP.Services
         {
             var stopwatch = Stopwatch.StartNew();
 
+            _logger.LogInformation("=== ExecuteCodeAsync START === Language: {Language}, Files: {Files}", 
+                language, string.Join(", ", files.Keys));
+
             try
             {
                 var (pistonLanguage, pistonVersion, entryPoint) = GetPistonLanguageConfig(language);
@@ -159,39 +162,28 @@ namespace PeP.Services
                 // Prepare files for Piston API
                 var pistonFiles = new List<PistonFile>();
                 
-                // Add the entry point file first (main file)
-                var mainFile = files.FirstOrDefault(f => 
-                    f.Key.EndsWith(entryPoint, StringComparison.OrdinalIgnoreCase) ||
-                    f.Key.Contains("main", StringComparison.OrdinalIgnoreCase) ||
-                    f.Key.Contains("Main", StringComparison.OrdinalIgnoreCase));
-
-                if (mainFile.Key != null)
+                // Language-specific multi-file handling
+                if (language == ProgrammingLanguage.Java)
                 {
-                    pistonFiles.Add(new PistonFile
-                    {
-                        Name = Path.GetFileName(mainFile.Key),
-                        Content = mainFile.Value
-                    });
+                    _logger.LogInformation("Using Java multi-file handler for {Count} files", files.Count);
+                    pistonFiles = PrepareJavaFiles(files, entryPoint);
+                }
+                else if (language == ProgrammingLanguage.Python)
+                {
+                    pistonFiles = PreparePythonFiles(files, entryPoint);
+                }
+                else if (language == ProgrammingLanguage.CSharp)
+                {
+                    pistonFiles = PrepareCSharpFiles(files, entryPoint);
+                }
+                else
+                {
+                    // Default handling for other languages
+                    pistonFiles = PrepareDefaultFiles(files, entryPoint, language);
                 }
 
-                // Add remaining files
-                foreach (var file in files)
-                {
-                    if (mainFile.Key == null || file.Key != mainFile.Key)
-                    {
-                        // Only add code files, not data files (CSV, TXT are handled separately)
-                        var ext = Path.GetExtension(file.Key).ToLowerInvariant();
-                        if (IsCodeFile(ext, language))
-                        {
-                            pistonFiles.Add(new PistonFile
-                            {
-                                Name = Path.GetFileName(file.Key),
-                                Content = file.Value
-                            });
-                        }
-                    }
-                }
-
+                _logger.LogInformation("=== Piston files prepared === Count: {Count}, Names: {Names}",
+                    pistonFiles.Count, string.Join(", ", pistonFiles.Select(f => f.Name)));
                 // For languages that can read files, embed data files in the code
                 var dataFiles = files.Where(f => IsDataFile(Path.GetExtension(f.Key))).ToList();
                 if (dataFiles.Any() && pistonFiles.Any())
@@ -225,6 +217,8 @@ namespace PeP.Services
 
                 var response = await _httpClient.PostAsJsonAsync(PISTON_API_URL, request);
                 var responseContent = await response.Content.ReadAsStringAsync();
+                
+                _logger.LogInformation("Piston API response: {Response}", responseContent);
 
                 if (!response.IsSuccessStatusCode)
                 {
@@ -391,6 +385,685 @@ namespace PeP.Services
             };
         }
 
+        /// <summary>
+        /// Prepares Java files for Piston execution.
+        /// IMPORTANT: Piston only compiles the FIRST file for Java, so we must combine all classes
+        /// into a single file. For this to work:
+        /// 1. Remove package declarations (Piston runs in flat directory)
+        /// 2. Remove local imports (classes will be in same file)
+        /// 3. Make non-main classes package-private (no public modifier)
+        /// 4. Keep main class public and put it FIRST in the file
+        /// </summary>
+        private List<PistonFile> PrepareJavaFiles(Dictionary<string, string> files, string entryPoint)
+        {
+            var javaFiles = files.Where(f => f.Key.EndsWith(".java", StringComparison.OrdinalIgnoreCase)).ToList();
+            
+            _logger.LogInformation("PrepareJavaFiles: {Count} Java files found. Files: {Files}", 
+                javaFiles.Count, string.Join(", ", javaFiles.Select(f => f.Key)));
+            
+            // If only one file, just process it normally
+            if (javaFiles.Count == 1)
+            {
+                var singleFile = javaFiles.First();
+                var content = RemovePackageDeclaration(singleFile.Value);
+                var fileName = Path.GetFileName(singleFile.Key);
+                
+                _logger.LogInformation("Single Java file mode: {FileName}", fileName);
+                
+                return new List<PistonFile>
+                {
+                    new PistonFile
+                    {
+                        Name = fileName,
+                        Content = content
+                    }
+                };
+            }
+            
+            // Multiple files - MUST combine into single file because Piston only compiles first file
+            var processedClasses = new List<(string ClassName, string Content, bool HasMain)>();
+            string? mainClassName = null;
+            
+            // Get all class names for removing local imports
+            var allClassNames = javaFiles.Select(f => Path.GetFileNameWithoutExtension(Path.GetFileName(f.Key))).ToList();
+            
+            foreach (var file in javaFiles)
+            {
+                var fileName = Path.GetFileName(file.Key);
+                var className = Path.GetFileNameWithoutExtension(fileName);
+                var content = file.Value;
+                
+                // Remove package declarations
+                content = RemovePackageDeclaration(content);
+                
+                // Remove imports for classes within the same project
+                content = RemoveLocalImports(content, allClassNames);
+                
+                // Check if this file has main method
+                bool hasMain = HasJavaMainMethod(content);
+                
+                _logger.LogInformation("Processing Java class: {ClassName}, HasMain: {HasMain}", className, hasMain);
+                
+                if (hasMain)
+                {
+                    mainClassName = className;
+                    _logger.LogInformation("MAIN CLASS DETECTED: {ClassName}", className);
+                }
+                
+                processedClasses.Add((className, content, hasMain));
+            }
+            
+            // Determine main class: 1) Has main method, 2) Named "Main", 3) First class
+            string finalMainClassName;
+            if (!string.IsNullOrEmpty(mainClassName))
+            {
+                finalMainClassName = mainClassName;
+            }
+            else
+            {
+                var mainNamedClass = processedClasses.FirstOrDefault(c => 
+                    c.ClassName.Equals("Main", StringComparison.OrdinalIgnoreCase));
+                finalMainClassName = mainNamedClass.ClassName ?? processedClasses.First().ClassName;
+                _logger.LogWarning("No main method found, using class: {ClassName}", finalMainClassName);
+            }
+            
+            // Build combined file - main class MUST be first and public
+            var combinedContent = new StringBuilder();
+            combinedContent.AppendLine("// Combined Java file for Piston execution");
+            combinedContent.AppendLine("import java.util.*;");
+            combinedContent.AppendLine("import java.io.*;");
+            combinedContent.AppendLine("import java.math.*;");
+            combinedContent.AppendLine("import java.text.*;");
+            combinedContent.AppendLine("import java.time.*;");
+            combinedContent.AppendLine("import java.util.stream.*;");
+            combinedContent.AppendLine();
+            
+            // Add main class FIRST - ensure it's public
+            var mainClassInfo = processedClasses.First(c => c.ClassName == finalMainClassName);
+            var mainContent = EnsureClassIsPublic(mainClassInfo.Content, finalMainClassName);
+            // Remove any duplicate import statements from the main class content
+            mainContent = RemoveImportStatements(mainContent);
+            combinedContent.AppendLine("// === Main class: " + finalMainClassName + " ===");
+            combinedContent.AppendLine(mainContent);
+            combinedContent.AppendLine();
+            
+            // Add all other classes (make them package-private)
+            foreach (var classInfo in processedClasses)
+            {
+                if (classInfo.ClassName != finalMainClassName)
+                {
+                    var classContent = MakeClassNonPublic(classInfo.Content);
+                    classContent = RemoveImportStatements(classContent);
+                    combinedContent.AppendLine("// === Class: " + classInfo.ClassName + " ===");
+                    combinedContent.AppendLine(classContent);
+                    combinedContent.AppendLine();
+                }
+            }
+            
+            // File MUST be named after the public class
+            var outputFileName = $"{finalMainClassName}.java";
+            
+            _logger.LogInformation("Combined {Count} Java files into: {FileName}", javaFiles.Count, outputFileName);
+            
+            return new List<PistonFile>
+            {
+                new PistonFile
+                {
+                    Name = outputFileName,
+                    Content = combinedContent.ToString()
+                }
+            };
+        }
+        
+        /// <summary>
+        /// Removes import statements from Java code (used when combining files to avoid duplicates)
+        /// </summary>
+        private string RemoveImportStatements(string javaCode)
+        {
+            var lines = javaCode.Split('\n');
+            var result = new List<string>();
+            
+            foreach (var line in lines)
+            {
+                var trimmed = line.Trim();
+                if (!trimmed.StartsWith("import "))
+                {
+                    result.Add(line);
+                }
+            }
+            
+            return string.Join("\n", result);
+        }
+        
+        /// <summary>
+        /// Checks if Java code contains a main method using multiple detection patterns.
+        /// </summary>
+        private bool HasJavaMainMethod(string javaCode)
+        {
+            if (string.IsNullOrEmpty(javaCode))
+                return false;
+            
+            // Multiple patterns to detect main method
+            var patterns = new[]
+            {
+                @"public\s+static\s+void\s+main\s*\(\s*String\s*\[\s*\]\s*\w*\s*\)",  // String[] args
+                @"public\s+static\s+void\s+main\s*\(\s*String\s+\w+\s*\[\s*\]\s*\)",  // String args[]
+                @"public\s+static\s+void\s+main\s*\(\s*String\s*\.\.\.\s*\w*\s*\)",   // String... args (varargs)
+            };
+            
+            foreach (var pattern in patterns)
+            {
+                if (System.Text.RegularExpressions.Regex.IsMatch(javaCode, pattern, 
+                    System.Text.RegularExpressions.RegexOptions.Singleline))
+                {
+                    return true;
+                }
+            }
+            
+            // Also do a simple string check as fallback
+            if (javaCode.Contains("public static void main") && javaCode.Contains("String"))
+            {
+                return true;
+            }
+            
+            return false;
+        }
+        
+        /// <summary>
+        /// Ensures a Java class has the public modifier.
+        /// This is needed for the main class in a combined file.
+        /// </summary>
+        private string EnsureClassIsPublic(string javaCode, string className)
+        {
+            var lines = javaCode.Split('\n');
+            var result = new List<string>();
+            bool classFound = false;
+            
+            foreach (var line in lines)
+            {
+                var trimmed = line.TrimStart();
+                
+                // Look for class declaration that matches our class name
+                if (!classFound)
+                {
+                    // Check for various class declaration patterns
+                    if (trimmed.StartsWith($"class {className}") ||
+                        trimmed.StartsWith($"final class {className}") ||
+                        trimmed.StartsWith($"abstract class {className}"))
+                    {
+                        // Add public modifier
+                        var modifiedLine = line.Replace($"class {className}", $"public class {className}")
+                                               .Replace($"final class {className}", $"public final class {className}")
+                                               .Replace($"abstract class {className}", $"public abstract class {className}");
+                        result.Add(modifiedLine);
+                        classFound = true;
+                        continue;
+                    }
+                    // Already has public - leave as is
+                    else if (trimmed.StartsWith($"public class {className}") ||
+                             trimmed.StartsWith($"public final class {className}") ||
+                             trimmed.StartsWith($"public abstract class {className}"))
+                    {
+                        classFound = true;
+                    }
+                }
+                
+                result.Add(line);
+            }
+            
+            return string.Join("\n", result);
+        }
+        
+        /// <summary>
+        /// Makes a Java class non-public by removing the 'public' modifier from the class declaration.
+        /// This allows multiple classes to exist in a single .java file.
+        /// </summary>
+        private string MakeClassNonPublic(string javaCode)
+        {
+            // Replace "public class ClassName" with "class ClassName"
+            // But preserve "public static" methods and "public" fields
+            var lines = javaCode.Split('\n');
+            var result = new List<string>();
+            
+            foreach (var line in lines)
+            {
+                var trimmed = line.TrimStart();
+                // Check if this is a class declaration line (not method/field)
+                if (trimmed.StartsWith("public class ") || trimmed.StartsWith("public final class ") ||
+                    trimmed.StartsWith("public abstract class "))
+                {
+                    // Remove "public " from the class declaration
+                    result.Add(line.Replace("public class ", "class ")
+                                   .Replace("public final class ", "final class ")
+                                   .Replace("public abstract class ", "abstract class "));
+                }
+                else
+                {
+                    result.Add(line);
+                }
+            }
+            
+            return string.Join("\n", result);
+        }
+        
+        /// <summary>
+        /// Removes import statements for classes that are defined in the same project.
+        /// When combining files, these imports are not needed and may cause errors.
+        /// </summary>
+        private string RemoveLocalImports(string javaCode, List<string> projectClassNames)
+        {
+            var lines = javaCode.Split('\n');
+            var result = new List<string>();
+            
+            foreach (var line in lines)
+            {
+                var trimmed = line.Trim();
+                
+                // Check if it's an import statement
+                if (trimmed.StartsWith("import "))
+                {
+                    // Check if it imports one of our project classes
+                    bool isLocalImport = projectClassNames.Any(className => 
+                        trimmed.EndsWith($".{className};") || 
+                        trimmed.Equals($"import {className};"));
+                    
+                    if (!isLocalImport)
+                    {
+                        result.Add(line);
+                    }
+                    // Skip local imports
+                }
+                else
+                {
+                    result.Add(line);
+                }
+            }
+            
+            return string.Join("\n", result);
+        }
+        
+        /// <summary>
+        /// Removes package declaration from Java source code.
+        /// Piston executes files in a flat directory structure, so package declarations
+        /// cause compilation errors when classes reference each other.
+        /// </summary>
+        private string RemovePackageDeclaration(string javaCode)
+        {
+            if (string.IsNullOrEmpty(javaCode))
+                return javaCode;
+            
+            // Remove package declaration line (e.g., "package com.example;")
+            var lines = javaCode.Split('\n');
+            var result = new List<string>();
+            bool packageRemoved = false;
+            
+            foreach (var line in lines)
+            {
+                var trimmed = line.Trim();
+                // Skip package declaration (only the first one)
+                if (!packageRemoved && trimmed.StartsWith("package ") && trimmed.EndsWith(";"))
+                {
+                    packageRemoved = true;
+                    continue;
+                }
+                // Also skip package with multiline or different formatting
+                if (!packageRemoved && System.Text.RegularExpressions.Regex.IsMatch(trimmed, @"^package\s+[\w.]+\s*;"))
+                {
+                    packageRemoved = true;
+                    continue;
+                }
+                result.Add(line);
+            }
+            
+            return string.Join("\n", result).TrimStart('\n');
+        }
+
+        /// <summary>
+        /// Prepares Python files for Piston execution.
+        /// Since Piston may not handle imports between files well,
+        /// we combine all Python files into a single file.
+        /// </summary>
+        private List<PistonFile> PreparePythonFiles(Dictionary<string, string> files, string entryPoint)
+        {
+            var pythonFiles = files.Where(f => f.Key.EndsWith(".py", StringComparison.OrdinalIgnoreCase)).ToList();
+            
+            _logger.LogInformation("Preparing {Count} Python files for execution", pythonFiles.Count);
+            
+            // If only one file, just return it
+            if (pythonFiles.Count == 1)
+            {
+                var singleFile = pythonFiles.First();
+                return new List<PistonFile>
+                {
+                    new PistonFile
+                    {
+                        Name = Path.GetFileName(singleFile.Key),
+                        Content = singleFile.Value
+                    }
+                };
+            }
+            
+            // Multiple files - combine them
+            var moduleNames = pythonFiles.Select(f => Path.GetFileNameWithoutExtension(f.Key)).ToList();
+            var combinedContent = new StringBuilder();
+            combinedContent.AppendLine("# Combined Python file for execution");
+            combinedContent.AppendLine();
+            
+            // Find main file
+            var mainFile = pythonFiles.FirstOrDefault(f =>
+            {
+                var fileName = Path.GetFileName(f.Key);
+                return fileName.Equals(entryPoint, StringComparison.OrdinalIgnoreCase) ||
+                       fileName.Equals("main.py", StringComparison.OrdinalIgnoreCase) ||
+                       f.Value.Contains("if __name__");
+            });
+            
+            // Add non-main files first (as their content will be available to main)
+            foreach (var file in pythonFiles)
+            {
+                if (mainFile.Key == null || file.Key != mainFile.Key)
+                {
+                    var moduleName = Path.GetFileNameWithoutExtension(file.Key);
+                    var content = RemovePythonLocalImports(file.Value, moduleNames);
+                    
+                    combinedContent.AppendLine($"# === Content from {moduleName}.py ===");
+                    combinedContent.AppendLine(content);
+                    combinedContent.AppendLine();
+                }
+            }
+            
+            // Add main file content last
+            if (mainFile.Key != null)
+            {
+                var mainContent = RemovePythonLocalImports(mainFile.Value, moduleNames);
+                // Remove "if __name__ == '__main__':" guard since we want it to run
+                mainContent = RemovePythonMainGuard(mainContent);
+                
+                combinedContent.AppendLine("# === Main execution ===");
+                combinedContent.AppendLine(mainContent);
+            }
+            
+            var result = new List<PistonFile>
+            {
+                new PistonFile
+                {
+                    Name = "main.py",
+                    Content = combinedContent.ToString()
+                }
+            };
+            
+            _logger.LogInformation("Combined {Count} Python files into single file", pythonFiles.Count);
+            
+            return result;
+        }
+        
+        /// <summary>
+        /// Removes import statements for local modules (files in the same project).
+        /// </summary>
+        private string RemovePythonLocalImports(string pythonCode, List<string> moduleNames)
+        {
+            var lines = pythonCode.Split('\n');
+            var result = new List<string>();
+            
+            foreach (var line in lines)
+            {
+                var trimmed = line.Trim();
+                
+                // Check various import patterns
+                bool isLocalImport = false;
+                
+                // "import modulename" or "import modulename as x"
+                if (trimmed.StartsWith("import "))
+                {
+                    var importPart = trimmed.Substring(7).Split(new[] { " as " }, StringSplitOptions.None)[0].Trim();
+                    isLocalImport = moduleNames.Contains(importPart);
+                }
+                // "from modulename import ..."
+                else if (trimmed.StartsWith("from "))
+                {
+                    var fromMatch = System.Text.RegularExpressions.Regex.Match(trimmed, @"^from\s+(\w+)\s+import");
+                    if (fromMatch.Success)
+                    {
+                        isLocalImport = moduleNames.Contains(fromMatch.Groups[1].Value);
+                    }
+                }
+                
+                if (!isLocalImport)
+                {
+                    result.Add(line);
+                }
+            }
+            
+            return string.Join("\n", result);
+        }
+        
+        /// <summary>
+        /// Removes or processes the if __name__ == '__main__' guard.
+        /// </summary>
+        private string RemovePythonMainGuard(string pythonCode)
+        {
+            // Find and remove the if __name__ guard, keeping the indented code
+            var lines = pythonCode.Split('\n').ToList();
+            var result = new List<string>();
+            bool inMainBlock = false;
+            int mainIndent = 0;
+            
+            for (int i = 0; i < lines.Count; i++)
+            {
+                var line = lines[i];
+                var trimmed = line.Trim();
+                
+                if (trimmed.StartsWith("if __name__") && trimmed.Contains("__main__"))
+                {
+                    inMainBlock = true;
+                    // Calculate the indentation of the if statement
+                    mainIndent = line.Length - line.TrimStart().Length;
+                    continue; // Skip the if line itself
+                }
+                
+                if (inMainBlock)
+                {
+                    // Check if we're still in the main block
+                    if (string.IsNullOrWhiteSpace(line))
+                    {
+                        result.Add(line);
+                        continue;
+                    }
+                    
+                    int currentIndent = line.Length - line.TrimStart().Length;
+                    if (currentIndent > mainIndent)
+                    {
+                        // Remove one level of indentation (typically 4 spaces)
+                        var dedentedLine = line.Length > 4 ? line.Substring(4) : line.TrimStart();
+                        result.Add(dedentedLine);
+                    }
+                    else
+                    {
+                        // We've exited the main block
+                        inMainBlock = false;
+                        result.Add(line);
+                    }
+                }
+                else
+                {
+                    result.Add(line);
+                }
+            }
+            
+            return string.Join("\n", result);
+        }
+
+        /// <summary>
+        /// Prepares C# files for Piston execution.
+        /// Since Piston may not compile multiple C# files together properly,
+        /// we combine all files into a single file.
+        /// </summary>
+        private List<PistonFile> PrepareCSharpFiles(Dictionary<string, string> files, string entryPoint)
+        {
+            var csharpFiles = files.Where(f => f.Key.EndsWith(".cs", StringComparison.OrdinalIgnoreCase)).ToList();
+            
+            _logger.LogInformation("Preparing {Count} C# files for execution", csharpFiles.Count);
+            
+            // If only one file, just return it
+            if (csharpFiles.Count == 1)
+            {
+                var singleFile = csharpFiles.First();
+                return new List<PistonFile>
+                {
+                    new PistonFile
+                    {
+                        Name = Path.GetFileName(singleFile.Key),
+                        Content = singleFile.Value
+                    }
+                };
+            }
+            
+            // Multiple files - combine them
+            var combinedContent = new StringBuilder();
+            combinedContent.AppendLine("// Combined C# file for execution");
+            
+            // Collect all unique using statements
+            var usings = new HashSet<string>();
+            var classContents = new List<(string ClassName, string Content, bool HasMain)>();
+            
+            foreach (var file in csharpFiles)
+            {
+                var content = file.Value;
+                var lines = content.Split('\n');
+                var classContent = new StringBuilder();
+                bool inClass = false;
+                int braceCount = 0;
+                bool hasMain = content.Contains("static void Main") || content.Contains("static async Task Main");
+                string className = Path.GetFileNameWithoutExtension(file.Key);
+                
+                foreach (var line in lines)
+                {
+                    var trimmed = line.Trim();
+                    
+                    // Collect using statements
+                    if (trimmed.StartsWith("using ") && trimmed.EndsWith(";") && !trimmed.Contains("("))
+                    {
+                        usings.Add(trimmed);
+                        continue;
+                    }
+                    
+                    // Skip namespace declarations (we'll put everything in global namespace)
+                    if (trimmed.StartsWith("namespace "))
+                    {
+                        continue;
+                    }
+                    
+                    // Skip standalone braces that are part of namespace
+                    if (!inClass && (trimmed == "{" || trimmed == "}"))
+                    {
+                        continue;
+                    }
+                    
+                    // Detect class/struct/record/interface declarations
+                    if (!inClass && (trimmed.Contains("class ") || trimmed.Contains("struct ") || 
+                                     trimmed.Contains("record ") || trimmed.Contains("interface ") ||
+                                     trimmed.Contains("enum ")))
+                    {
+                        inClass = true;
+                    }
+                    
+                    if (inClass)
+                    {
+                        classContent.AppendLine(line);
+                        braceCount += line.Count(c => c == '{') - line.Count(c => c == '}');
+                        
+                        if (braceCount <= 0)
+                        {
+                            inClass = false;
+                        }
+                    }
+                }
+                
+                if (classContent.Length > 0)
+                {
+                    classContents.Add((className, classContent.ToString().Trim(), hasMain));
+                }
+            }
+            
+            // Add using statements
+            foreach (var usingStatement in usings.OrderBy(u => u))
+            {
+                combinedContent.AppendLine(usingStatement);
+            }
+            combinedContent.AppendLine();
+            
+            // Add classes without Main first
+            foreach (var (className, content, hasMain) in classContents.Where(c => !c.HasMain))
+            {
+                combinedContent.AppendLine($"// From {className}.cs");
+                combinedContent.AppendLine(content);
+                combinedContent.AppendLine();
+            }
+            
+            // Add class with Main last
+            foreach (var (className, content, hasMain) in classContents.Where(c => c.HasMain))
+            {
+                combinedContent.AppendLine($"// From {className}.cs (Main)");
+                combinedContent.AppendLine(content);
+                combinedContent.AppendLine();
+            }
+            
+            var result = new List<PistonFile>
+            {
+                new PistonFile
+                {
+                    Name = "Program.cs",
+                    Content = combinedContent.ToString()
+                }
+            };
+            
+            _logger.LogInformation("Combined {Count} C# files into single file", csharpFiles.Count);
+            
+            return result;
+        }
+
+        /// <summary>
+        /// Default file preparation for other languages.
+        /// </summary>
+        private List<PistonFile> PrepareDefaultFiles(Dictionary<string, string> files, string entryPoint, ProgrammingLanguage language)
+        {
+            var pistonFiles = new List<PistonFile>();
+            
+            // Add the entry point file first (main file)
+            var mainFile = files.FirstOrDefault(f => 
+                f.Key.EndsWith(entryPoint, StringComparison.OrdinalIgnoreCase) ||
+                f.Key.Contains("main", StringComparison.OrdinalIgnoreCase) ||
+                f.Key.Contains("Main", StringComparison.OrdinalIgnoreCase));
+
+            if (mainFile.Key != null)
+            {
+                pistonFiles.Add(new PistonFile
+                {
+                    Name = Path.GetFileName(mainFile.Key),
+                    Content = mainFile.Value
+                });
+            }
+
+            // Add remaining code files
+            foreach (var file in files)
+            {
+                if (mainFile.Key == null || file.Key != mainFile.Key)
+                {
+                    var ext = Path.GetExtension(file.Key).ToLowerInvariant();
+                    if (IsCodeFile(ext, language))
+                    {
+                        pistonFiles.Add(new PistonFile
+                        {
+                            Name = Path.GetFileName(file.Key),
+                            Content = file.Value
+                        });
+                    }
+                }
+            }
+            
+            return pistonFiles;
+        }
+
         private bool IsCodeFile(string extension, ProgrammingLanguage language)
         {
             var codeExtensions = language switch
@@ -443,12 +1116,11 @@ namespace PeP.Services
                     break;
 
                 case ProgrammingLanguage.Java:
-                    dataContent.AppendLine("// Auto-generated data file contents");
-                    dataContent.AppendLine("import java.util.HashMap;");
-                    dataContent.AppendLine("import java.util.Map;");
-                    dataContent.AppendLine();
-                    dataContent.AppendLine("public class DataFiles {");
-                    dataContent.AppendLine("    private static final Map<String, String> DATA = new HashMap<>();");
+                    // For Java, append DataFiles class to the combined file (Piston only compiles first file)
+                    dataContent.AppendLine("");
+                    dataContent.AppendLine("// === Auto-generated DataFiles helper class ===");
+                    dataContent.AppendLine("class DataFiles {");
+                    dataContent.AppendLine("    private static final java.util.Map<String, String> DATA = new java.util.HashMap<>();");
                     dataContent.AppendLine("    static {");
                     foreach (var df in dataFiles)
                     {
@@ -466,7 +1138,13 @@ namespace PeP.Services
                     dataContent.AppendLine("    }");
                     dataContent.AppendLine("}");
                     
-                    codeFiles.Add(new PistonFile { Name = "DataFiles.java", Content = dataContent.ToString() });
+                    // Append to the combined Java file
+                    if (codeFiles.Any())
+                    {
+                        var mainFile = codeFiles[0];
+                        mainFile.Content = mainFile.Content.TrimEnd() + "\n\n" + dataContent.ToString();
+                        _logger.LogInformation("Appended DataFiles class to combined Java file");
+                    }
                     break;
 
                 case ProgrammingLanguage.JavaScript:

@@ -119,7 +119,7 @@ else if (currentAttempt != null && programmingExam != null)
                             <SolutionExplorer ProjectName="@programmingExam.ProjectName"
                                              Files="@studentFiles"
                                              StarterFiles="@starterFiles"
-                                             @bind-SelectedFile="selectedFile"
+                                             SelectedFile="@selectedFile"
                                              OnFileSelected="@OnFileSelected"
                                              OnNewFile="@CreateNewFile"
                                              OnNewFolder="@CreateNewFolder"
@@ -394,6 +394,43 @@ else if (currentAttempt != null && programmingExam != null)
         // Start timers
         StartTimers();
         examStarted = true;
+        
+        // Initialize cross-file symbol detection after render
+        _ = Task.Run(async () => 
+        {
+            await Task.Delay(500); // Wait for editor to initialize
+            await InvokeAsync(UpdateProjectFilesForSymbols);
+        });
+    }
+    
+    /// <summary>
+    /// Update all project files for cross-file symbol detection (autocomplete)
+    /// </summary>
+    private async Task UpdateProjectFilesForSymbols()
+    {
+        if (codeEditor == null) return;
+        
+        var allFiles = new Dictionary<string, string>();
+        
+        // Add all starter files
+        foreach (var file in starterFiles)
+        {
+            var content = fileContents.TryGetValue(file.FilePath, out var fc) ? fc : file.Content;
+            allFiles[file.FilePath] = content;
+        }
+        
+        // Add all student files (overwrite if same path)
+        foreach (var file in studentFiles)
+        {
+            var content = fileContents.TryGetValue(file.FilePath, out var fc) ? fc : file.Content;
+            allFiles[file.FilePath] = content;
+        }
+        
+        try
+        {
+            await codeEditor.UpdateProjectFiles(allFiles);
+        }
+        catch { /* Editor might not be ready */ }
     }
 
     private void StartTimers()
@@ -426,24 +463,29 @@ else if (currentAttempt != null && programmingExam != null)
 
     private async Task OnFileSelected(StudentProjectFile file)
     {
+        // IMPORTANT: Capture the previous file path BEFORE any changes
+        // This prevents race conditions with bindings
+        var previousFilePath = selectedFile?.FilePath;
+        
         // Save current editor content to tracking before switching
-        if (selectedFile != null && codeEditor != null)
+        if (!string.IsNullOrEmpty(previousFilePath) && codeEditor != null && previousFilePath != file.FilePath)
         {
             try
             {
                 var currentContent = await codeEditor.GetEditorContent();
                 if (!string.IsNullOrEmpty(currentContent))
                 {
-                    fileContents[selectedFile.FilePath] = currentContent;
+                    // Save to the PREVIOUS file's path, not the new one
+                    fileContents[previousFilePath] = currentContent;
                     
                     // Check if modified compared to original
-                    var originalFile = studentFiles.FirstOrDefault(f => f.FilePath == selectedFile.FilePath);
-                    var starterFile = starterFiles.FirstOrDefault(f => f.FilePath == selectedFile.FilePath);
+                    var originalFile = studentFiles.FirstOrDefault(f => f.FilePath == previousFilePath);
+                    var starterFile = starterFiles.FirstOrDefault(f => f.FilePath == previousFilePath);
                     var originalContent = originalFile?.Content ?? starterFile?.Content ?? "";
                     
                     if (currentContent != originalContent)
                     {
-                        modifiedFiles[selectedFile.FilePath] = currentContent;
+                        modifiedFiles[previousFilePath] = currentContent;
                     }
                 }
             }
@@ -511,23 +553,27 @@ else if (currentAttempt != null && programmingExam != null)
 
     private async Task SwitchToTab(StudentProjectFile tab)
     {
+        // IMPORTANT: Capture the previous file path BEFORE any changes
+        var previousFilePath = selectedFile?.FilePath;
+        
         // Save current editor content before switching
-        if (selectedFile != null && codeEditor != null && selectedFile.FilePath != tab.FilePath)
+        if (!string.IsNullOrEmpty(previousFilePath) && codeEditor != null && previousFilePath != tab.FilePath)
         {
             try
             {
                 var currentContent = await codeEditor.GetEditorContent();
                 if (!string.IsNullOrEmpty(currentContent))
                 {
-                    fileContents[selectedFile.FilePath] = currentContent;
+                    // Save to the PREVIOUS file's path, not the new one
+                    fileContents[previousFilePath] = currentContent;
                     
-                    var originalFile = studentFiles.FirstOrDefault(f => f.FilePath == selectedFile.FilePath);
-                    var starterFile = starterFiles.FirstOrDefault(f => f.FilePath == selectedFile.FilePath);
+                    var originalFile = studentFiles.FirstOrDefault(f => f.FilePath == previousFilePath);
+                    var starterFile = starterFiles.FirstOrDefault(f => f.FilePath == previousFilePath);
                     var originalContent = originalFile?.Content ?? starterFile?.Content ?? "";
                     
                     if (currentContent != originalContent)
                     {
-                        modifiedFiles[selectedFile.FilePath] = currentContent;
+                        modifiedFiles[previousFilePath] = currentContent;
                     }
                 }
             }
@@ -718,8 +764,33 @@ else if (currentAttempt != null && programmingExam != null)
                 modifiedFiles.Remove(selectedFile.FilePath);
             }
             
+            // Update symbol detection for this file (debounced)
+            _ = UpdateFileSymbolsDebounced(selectedFile.FilePath, newContent);
+            
             StateHasChanged();
         }
+    }
+    
+    private CancellationTokenSource? _symbolUpdateCts;
+    
+    /// <summary>
+    /// Debounced symbol update to avoid too many updates while typing
+    /// </summary>
+    private async Task UpdateFileSymbolsDebounced(string filePath, string content)
+    {
+        _symbolUpdateCts?.Cancel();
+        _symbolUpdateCts = new CancellationTokenSource();
+        var token = _symbolUpdateCts.Token;
+        
+        try
+        {
+            await Task.Delay(1000, token); // Wait 1 second after typing stops
+            if (!token.IsCancellationRequested && codeEditor != null)
+            {
+                await codeEditor.UpdateFileForSymbols(filePath, content);
+            }
+        }
+        catch (TaskCanceledException) { /* Expected when typing continues */ }
     }
 
     private async Task SaveCurrentFile()
